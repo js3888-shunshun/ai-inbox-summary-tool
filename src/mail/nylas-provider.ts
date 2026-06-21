@@ -76,10 +76,10 @@ export class NylasMailProvider implements MailProvider {
     return res.data.map(toEmailMessage);
   }
 
-  // ---- Implemented in M3 (webhook refetch) / M4 (send) ----
-
-  getMessage(): Promise<EmailMessage> {
-    throw new Error("NylasMailProvider.getMessage not implemented yet (M3)");
+  /** Fetch one full message — used to recover from truncated webhook payloads. */
+  async getMessage(grantId: string, messageId: string): Promise<EmailMessage> {
+    const res = await this.nylas.messages.find({ identifier: grantId, messageId });
+    return toEmailMessage(res.data);
   }
 
   sendEmail(): Promise<void> {

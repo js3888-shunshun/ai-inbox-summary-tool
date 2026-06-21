@@ -6,6 +6,7 @@ import { ClaudeSummarizer } from "./ai/claude-summarizer.js";
 import { anthropicCompletion } from "./ai/anthropic.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerDigestRoutes } from "./routes/digest.js";
+import { webhookPlugin } from "./routes/webhook.js";
 
 /**
  * Composition root: load+validate config, open the DB, wire routes, listen.
@@ -35,8 +36,8 @@ async function main(): Promise<void> {
     redirectUri: `${config.publicBaseUrl}/oauth/callback`,
   });
   registerDigestRoutes(app, { db, mail, summarizer });
+  app.register(webhookPlugin({ db, mail, webhookSecret: config.nylas.webhookSecret }));
 
-  // TODO(M3): app.register(webhookRoutes, { config, db, mail })
   // TODO(M4): start scheduler(config, db, mail, summarizer)
 
   const close = async (): Promise<void> => {
