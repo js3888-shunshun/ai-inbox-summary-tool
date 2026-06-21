@@ -87,7 +87,11 @@ function fakeDeps(
     revokeGrant: async () => {},
   } as unknown as MailProvider;
   const summarizer: Summarizer = {
-    summarize: async (msgs) => ({ headline: "h", body: "b", messageCount: msgs.length }),
+    summarize: async (msgs) => ({
+      headline: "h",
+      sections: [{ title: "FYI", tone: "info", items: [{ from: "", summary: "b" }] }],
+      messageCount: msgs.length,
+    }),
   };
   return { deps: { db, mail, summarizer, log: silentLog }, sendEmail };
 }
