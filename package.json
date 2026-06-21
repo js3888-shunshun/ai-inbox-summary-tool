@@ -2,7 +2,6 @@
   "name": "ai-inbox-summary",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "description": "Connect a mailbox via Nylas, ingest mail via webhook, and email an AI-written inbox digest on a user-configurable cadence.",
   "engines": {
     "node": ">=20"

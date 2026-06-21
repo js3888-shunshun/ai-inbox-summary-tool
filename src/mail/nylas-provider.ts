@@ -8,7 +8,7 @@ import type { Config } from "../config.js";
  * about the Nylas SDK; everything else depends on the MailProvider interface.
  */
 export class NylasMailProvider implements MailProvider {
-  private readonly nylas: Nylas;
+  private readonly nylas: InstanceType<typeof Nylas>;
   private readonly clientId: string;
   private readonly apiKey: string;
 
