@@ -39,8 +39,6 @@ export class NylasMailProvider implements MailProvider {
     return this.nylas.auth.urlForOAuth2({
       clientId: this.clientId,
       redirectUri,
-      // Force the account chooser so additional mailboxes can be connected.
-      prompt: "select_account",
       ...(state !== undefined ? { state } : {}),
     });
   }
