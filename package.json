@@ -12,7 +12,8 @@
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "register:webhook": "tsx scripts/register-webhook.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.65.0",
