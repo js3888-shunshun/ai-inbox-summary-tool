@@ -58,17 +58,27 @@ export async function runScheduledDigest(
   }
   try {
     // "Since last digest": mail accumulated by the webhook, minus our own digests.
-    const messages = excludeOwnDigests(listUnsummarized(deps.db, grant.grantId));
-    if (messages.length === 0) {
+    const accumulated = excludeOwnDigests(listUnsummarized(deps.db, grant.grantId));
+    if (accumulated.length === 0) {
       deps.log.info({ grantId: grant.grantId, windowKey }, "no new mail; window consumed");
       return "empty";
     }
-    await composeAndSend(deps, grant, messages);
-    markSummarized(
-      deps.db,
-      messages.map((m) => m.id),
+    // Validate against the live inbox so mail deleted or moved (to spam/trash)
+    // since it arrived is excluded — the digest reflects the current inbox.
+    const liveIds = new Set(
+      (await deps.mail.listMessages(grant.grantId, { limit: 100 })).map((m) => m.id),
     );
-    deps.log.info({ grantId: grant.grantId, windowKey, count: messages.length }, "digest sent");
+    const inInbox = accumulated.filter((m) => liveIds.has(m.id));
+    const consumedIds = accumulated.map((m) => m.id); // advance the watermark for all
+
+    if (inInbox.length === 0) {
+      markSummarized(deps.db, consumedIds);
+      deps.log.info({ grantId: grant.grantId, windowKey }, "accumulated mail no longer in inbox; skipped");
+      return "empty";
+    }
+    await composeAndSend(deps, grant, inInbox);
+    markSummarized(deps.db, consumedIds);
+    deps.log.info({ grantId: grant.grantId, windowKey, count: inInbox.length }, "digest sent");
     return "sent";
   } catch (err) {
     releaseWindow(deps.db, grant.grantId, windowKey); // allow retry next tick

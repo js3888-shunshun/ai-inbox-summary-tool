@@ -46,6 +46,20 @@ describe("window alignment", () => {
   });
 });
 
+function baseMsg(id: string): EmailMessage {
+  return {
+    id,
+    grantId: "g1",
+    threadId: null,
+    from: "Alice",
+    fromEmail: "a@x.com",
+    subject: "Hi " + id,
+    snippet: "hello",
+    receivedAt: 1_750_000_000,
+    unread: true,
+  };
+}
+
 function seed(db: DB): void {
   saveGrant(db, {
     grantId: "g1",
@@ -54,29 +68,23 @@ function seed(db: DB): void {
     createdAt: Date.now(),
   });
   saveSchedule(db, { grantId: "g1", cadence: "every:5m", timezone: "UTC", enabled: true });
-  const base: EmailMessage = {
-    id: "m1",
-    grantId: "g1",
-    threadId: null,
-    from: "Alice",
-    fromEmail: "a@x.com",
-    subject: "Hi",
-    snippet: "hello",
-    receivedAt: 1_750_000_000,
-    unread: true,
-  };
-  upsertMessage(db, base);
-  upsertMessage(db, { ...base, id: "m2" });
+  upsertMessage(db, baseMsg("m1"));
+  upsertMessage(db, baseMsg("m2"));
 }
 
-function fakeDeps(db: DB): { deps: SchedulerDeps; sendEmail: ReturnType<typeof vi.fn> } {
+/** `liveInbox` is what the provider reports as currently in the inbox. */
+function fakeDeps(
+  db: DB,
+  liveInbox: EmailMessage[] = [baseMsg("m1"), baseMsg("m2")],
+): { deps: SchedulerDeps; sendEmail: ReturnType<typeof vi.fn> } {
   const sendEmail = vi.fn(async () => {});
   const mail = {
     authUrl: () => "",
     exchangeCode: async () => ({ grantId: "g1", email: "u@example.com" }),
-    listMessages: async () => [],
+    listMessages: async () => liveInbox,
     getMessage: async () => ({}) as EmailMessage,
     sendEmail,
+    revokeGrant: async () => {},
   } as unknown as MailProvider;
   const summarizer: Summarizer = {
     summarize: async (msgs) => ({ headline: "h", body: "b", messageCount: msgs.length }),
@@ -111,5 +119,22 @@ describe("runScheduledDigest exactly-once", () => {
     const outcome = await runScheduledDigest(deps, grant, schedule, Date.UTC(2026, 5, 20, 10, 10, 0));
     expect(outcome).toBe("empty");
     expect(sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("excludes accumulated mail no longer in the inbox (deleted/moved)", async () => {
+    const db = openDb(":memory:");
+    seed(db); // m1, m2 accumulated
+    // live inbox now only has m1 (m2 was deleted/moved after arrival)
+    const { deps, sendEmail } = fakeDeps(db, [baseMsg("m1")]);
+    const grant = getGrant(db, "g1")!;
+    const schedule = getSchedule(db, "g1")!;
+
+    const outcome = await runScheduledDigest(deps, grant, schedule, Date.UTC(2026, 5, 20, 10, 5, 0));
+    expect(outcome).toBe("sent");
+    // only the still-present message is summarized…
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    // …and both are consumed, so the deleted one won't resurface next window
+    const remaining = await runScheduledDigest(deps, grant, schedule, Date.UTC(2026, 5, 20, 10, 10, 0));
+    expect(remaining).toBe("empty");
   });
 });

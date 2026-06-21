@@ -130,9 +130,12 @@ invariants:
 **Collecting & de-duplicating incoming mail.** The webhook stores messages keyed
 on the Nylas message id (PK), so duplicate and out-of-order deliveries are
 no-ops. Payloads can be truncated, so the handler **always refetches the full
-message** rather than trusting the webhook body. A `summarized` flag marks what a
-digest has already covered, so the next window only includes new mail (no
-refetching the whole mailbox).
+message** rather than trusting the webhook body. Only **INBOX** mail is
+accumulated — spam/trash/sent are skipped at ingestion. A `summarized` flag marks
+what a digest has already covered, so the next window only includes new mail (no
+refetching the whole mailbox). At digest time the accumulated set is **validated
+against the live inbox**, so mail deleted or moved after it arrived is excluded —
+the digest reflects what's actually in the inbox now, not just what once arrived.
 
 **Self-reference.** When the digest's destination is the connected mailbox
 itself, each digest email lands back in the inbox. Digests are tagged with a known

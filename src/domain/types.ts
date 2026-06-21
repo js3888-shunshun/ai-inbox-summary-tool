@@ -25,6 +25,9 @@ export interface EmailMessage {
   /** Unix seconds, from the provider's `date` field. */
   receivedAt: number;
   unread: boolean;
+  /** Provider folder/label ids (e.g. INBOX, SPAM, TRASH). Present on freshly
+   *  fetched messages; omitted for rows read back from our own store. */
+  folders?: string[];
 }
 
 /** Cadence configuration for a grant. Changing this needs no code change. */

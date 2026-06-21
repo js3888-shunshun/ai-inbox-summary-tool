@@ -17,6 +17,7 @@ export function toEmailMessage(m: Message): EmailMessage {
     snippet: m.snippet ?? "",
     receivedAt: m.date,
     unread: m.unread ?? false,
+    ...(m.folders ? { folders: m.folders } : {}),
   };
 }
 

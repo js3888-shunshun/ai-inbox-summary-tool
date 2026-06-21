@@ -98,6 +98,11 @@ export function webhookPlugin(deps: WebhookDeps): FastifyPluginCallback {
       }
       // Always refetch the full message: handles truncated payloads uniformly.
       const full = await mail.getMessage(grantId, messageId);
+      // Only accumulate inbox mail — skip spam, trash, sent, etc.
+      if (full.folders && !full.folders.includes("INBOX")) {
+        fastify.log.info({ messageId, folders: full.folders }, "skipped non-inbox message");
+        return;
+      }
       // Never ingest the app's own digest emails (avoids self-summarizing loops).
       if (isOwnDigest(full.subject)) {
         fastify.log.info({ messageId }, "skipped own digest email");
