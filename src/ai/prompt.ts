@@ -17,6 +17,10 @@ Organize the digest into a few sections, ordered most important first. Give each
 
 Within a section, each item names the sender and states the single most useful point in one short line. Be specific (names, asks, dates). Do not just repeat subject lines. Omit empty sections; create only the sections that apply.
 
+Do not list low-value promotional, marketing, or newsletter emails individually. Instead, collapse them into a single info item that states how many there are, for example {"from":"","summary":"8 promotional or newsletter emails, no action needed"}.
+
+The headline should describe the main themes or what needs attention. Do not mention whether messages are read or unread anywhere in the digest, and never put an unread count or the word "unread" in the headline.
+
 Write plain, neutral text. Do NOT use emoji, arrows, em-dashes, or markdown formatting inside any value.
 
 Respond with ONLY a JSON object (no markdown fences, no prose around it) of the form:
@@ -25,10 +29,9 @@ Respond with ONLY a JSON object (no markdown fences, no prose around it) of the 
 /** Render one message as a compact, deterministic block for the model. */
 function formatMessage(m: EmailMessage, index: number): string {
   const when = new Date(m.receivedAt * 1000).toISOString().replace("T", " ").slice(0, 16);
-  const flags = m.unread ? " [UNREAD]" : "";
   const snippet = m.snippet.replace(/\s+/g, " ").trim().slice(0, 280);
   return [
-    `[${index + 1}] From: ${m.from} <${m.fromEmail}> | ${when} UTC${flags}`,
+    `[${index + 1}] From: ${m.from} <${m.fromEmail}> | ${when} UTC`,
     `Subject: ${m.subject}`,
     `Snippet: ${snippet}`,
   ].join("\n");

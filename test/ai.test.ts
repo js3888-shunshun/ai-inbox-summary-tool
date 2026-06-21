@@ -26,7 +26,12 @@ describe("buildSummaryPrompt", () => {
     expect(user).toContain("Alice Example");
     expect(user).toContain("Q3 budget review");
     expect(user).toContain("before Friday");
-    expect(user).toContain("[UNREAD]");
+  });
+
+  it("does not leak read/unread status into the prompt", () => {
+    const { system, user } = buildSummaryPrompt([msg({ unread: true })]);
+    expect(user).not.toContain("UNREAD");
+    expect(system.toLowerCase()).toContain("unread"); // only as an instruction not to mention it
   });
 
   it("is deterministic for the same input", () => {
