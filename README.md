@@ -105,8 +105,8 @@ callback/webhook URLs hang off it.
 
 ## End-to-end flow
 
-1. **Connect** — open `/`, click *Connect a mailbox* → Nylas hosted OAuth → `/oauth/callback` exchanges the code and persists the `grantId`.
-2. **Configure** — on `/`, set a **cadence** (`hourly`, `every:5m`, `every:2h`, `daily:09:00`), a **timezone**, and the **destination** address (may differ from the mailbox).
+1. **Connect** — open `/`, click *Connect a mailbox* → Nylas hosted OAuth → `/oauth/callback` exchanges the code and persists the `grantId`. **Connect as many mailboxes as you like**; each is an independent grant with its own settings (the auth flow forces the account chooser so additional accounts can be added).
+2. **Configure** — on `/`, per mailbox set a **cadence** (`hourly`, `every:5m`, `every:2h`, `daily:09:00`), a **timezone**, and the **destination** address (may differ from the mailbox). Each mailbox can be **paused/resumed** or **disconnected** (which revokes the grant on Nylas and drops its local data).
 3. **Ingest** — when mail arrives, Nylas calls `/webhooks/nylas`; the handler verifies the HMAC, returns `200` immediately, then refetches the full message and stores it (deduped).
 4. **Summarize & send** — each scheduler tick, a due window claims its idempotency key, summarizes the mail collected since the last digest, and emails it via Nylas to the destination.
 5. **Preview / trigger** — `/debug/digest` previews a digest; the *Send digest now* button triggers one immediately.
@@ -166,7 +166,7 @@ CJS-native — avoiding ESM dual-package friction for zero benefit on a Node ser
 - **Delivery guarantees:** an outbox table + retry/backoff with a provider-side
   idempotency key, so a failed send is retried without any chance of a duplicate.
 - **Richer digests:** HTML email templating; per-sender importance learned over time; thread-aware grouping.
-- **Multi-user:** the data model is already per-grant, but the UI assumes a single primary mailbox; add real accounts/sessions.
+- **Multi-user:** multiple mailboxes are already supported per-grant (connect/pause/disconnect from the UI); what's missing is real user accounts/auth so different people see only their own mailboxes.
 - **Ops:** structured metrics, webhook replay protection via event-id dedup, and a dead-letter log for failed ingests.
 - **Tests:** type-check the test files in CI; add an integration test against a Nylas sandbox.
 
