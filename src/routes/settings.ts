@@ -68,7 +68,7 @@ export function registerSettingsRoutes(app: FastifyInstance, deps: SettingsDeps)
       return reply.code(400).send({ error: "unknown grantId" });
     }
     if (!setScheduleEnabled(db, b.grantId, b.enabled === true)) {
-      return reply.code(400).send({ error: "no schedule to update — save one first" });
+      return reply.code(400).send({ error: "no schedule to update, save one first" });
     }
     return reply.send({ ok: true, enabled: b.enabled === true });
   });
@@ -89,31 +89,34 @@ export function registerSettingsRoutes(app: FastifyInstance, deps: SettingsDeps)
   });
 }
 
-/** Cadence presets shown in the dropdown (value → label). `daily` is special-cased. */
-const CADENCE_PRESETS: ReadonlyArray<readonly [string, string]> = [
-  ["every:5m", "Every 5 minutes"],
-  ["every:15m", "Every 15 minutes"],
-  ["every:30m", "Every 30 minutes"],
-  ["hourly", "Hourly"],
-  ["every:2h", "Every 2 hours"],
-  ["every:6h", "Every 6 hours"],
-];
+/** Numbers offered in the interval dropdown (the current value is injected if missing). */
+const CADENCE_NUMBERS = [1, 2, 3, 5, 10, 15, 20, 30, 45] as const;
 
-/** Render the cadence <option> list, selecting whatever the schedule currently uses. */
-function cadenceOptions(current: string): string {
-  const isDaily = current.startsWith("daily:");
-  const knownPreset = CADENCE_PRESETS.some(([v]) => v === current);
-  const opts: string[] = [];
-  // Preserve a non-preset interval value (e.g. an old every:2m) so it round-trips.
-  if (!isDaily && !knownPreset) {
-    opts.push(`<option value="${esc(current)}" selected>${esc(current)}</option>`);
+interface CadenceParts {
+  mode: "every" | "daily";
+  num: number;
+  unit: "m" | "h";
+  time: string; // HH:MM, used by the daily mode
+}
+
+/** Decompose a stored cadence string into the separate dropdown parts. */
+function cadenceParts(current: string): CadenceParts {
+  if (current.startsWith("daily:")) {
+    return { mode: "daily", num: 1, unit: "h", time: current.slice("daily:".length) || "09:00" };
   }
-  for (const [value, label] of CADENCE_PRESETS) {
-    const sel = !isDaily && value === current ? " selected" : "";
-    opts.push(`<option value="${esc(value)}"${sel}>${label}</option>`);
-  }
-  opts.push(`<option value="daily"${isDaily ? " selected" : ""}>Daily at…</option>`);
-  return opts.join("");
+  if (current === "hourly") return { mode: "every", num: 1, unit: "h", time: "09:00" };
+  const m = /^every:(\d+)([mh])$/.exec(current);
+  if (m) return { mode: "every", num: Number(m[1]), unit: m[2] as "m" | "h", time: "09:00" };
+  return { mode: "every", num: 1, unit: "h", time: "09:00" }; // safe fallback
+}
+
+/** Render the interval-number <option> list, injecting the current value if off-preset. */
+function numberOptions(selected: number): string {
+  const known = (CADENCE_NUMBERS as readonly number[]).includes(selected);
+  const nums = known ? [...CADENCE_NUMBERS] : [selected, ...CADENCE_NUMBERS].sort((a, b) => a - b);
+  return nums
+    .map((n) => `<option value="${n}"${n === selected ? " selected" : ""}>${n}</option>`)
+    .join("");
 }
 
 /** Full IANA timezone list (falls back to a small set on older runtimes). */
@@ -136,13 +139,13 @@ function renderCard(g: { grantId: string; email: string; destinationEmail: strin
   const cadence = s?.cadence ?? "hourly";
   const tz = s?.timezone ?? "UTC";
   const enabled = s?.enabled ?? false;
-  const isDaily = cadence.startsWith("daily:");
-  const dailyTime = isDaily ? cadence.slice("daily:".length) : "09:00";
+  const p = cadenceParts(cadence);
+  const isDaily = p.mode === "daily";
   const pill = !s
     ? `<span class="pill none">No schedule</span>`
     : enabled
-      ? `<span class="pill on">● Active</span>`
-      : `<span class="pill off">⏸ Paused</span>`;
+      ? `<span class="pill on">Active</span>`
+      : `<span class="pill off">Paused</span>`;
   const toggle = s
     ? enabled
       ? `<button class="btn" onclick="setEnabled(this,false)">Pause</button>`
@@ -156,7 +159,7 @@ function renderCard(g: { grantId: string; email: string; destinationEmail: strin
       <span class="avatar">${initial}</span>
       <div>
         <div class="email">${esc(g.email)}</div>
-        <div class="sub">Digests &rarr; ${esc(g.destinationEmail)}</div>
+        <div class="sub">Sends to ${esc(g.destinationEmail)}</div>
       </div>
     </div>
     ${pill}
@@ -164,10 +167,22 @@ function renderCard(g: { grantId: string; email: string; destinationEmail: strin
   <input type="hidden" class="grantId" value="${esc(g.grantId)}">
   <div class="fields">
     <label class="field"><span>Cadence</span>
-      <select class="cadence" onchange="onCadence(this)">${cadenceOptions(cadence)}</select>
+      <select class="cadMode" onchange="onCadence(this)">
+        <option value="every"${isDaily ? "" : " selected"}>Every</option>
+        <option value="daily"${isDaily ? " selected" : ""}>Daily at</option>
+      </select>
     </label>
-    <label class="field daily-time" ${isDaily ? "" : `style="display:none"`}><span>At</span>
-      <input type="time" class="dailyTime" value="${esc(dailyTime)}">
+    <label class="field interval"${isDaily ? ` style="display:none"` : ""}><span>How often</span>
+      <span class="interval-row">
+        <select class="cadNum">${numberOptions(p.num)}</select>
+        <select class="cadUnit">
+          <option value="m"${p.unit === "m" ? " selected" : ""}>minutes</option>
+          <option value="h"${p.unit === "h" ? " selected" : ""}>hours</option>
+        </select>
+      </span>
+    </label>
+    <label class="field daily-time"${isDaily ? "" : ` style="display:none"`}><span>At</span>
+      <input type="time" class="dailyTime" value="${esc(p.time)}">
     </label>
     <label class="field"><span>Timezone</span>
       <select class="timezone">${timezoneOptions(tz)}</select>
@@ -191,10 +206,9 @@ function renderHome(db: DB): string {
   const cards = grants.map((g) => renderCard(g, db)).join("");
   const empty = `
 <div class="empty">
-  <div class="empty-icon">📭</div>
   <h2>No mailbox connected yet</h2>
-  <p>Connect a mailbox to start receiving AI-written inbox digests on your own schedule.</p>
-  <a class="btn primary lg" href="/auth">➕ Connect a mailbox</a>
+  <p>Connect a mailbox to start receiving inbox summaries on a schedule you choose.</p>
+  <a class="btn primary lg" href="/auth">Connect a mailbox</a>
 </div>`;
 
   return `<!doctype html><html lang="en"><head>
@@ -206,12 +220,12 @@ function renderHome(db: DB): string {
 <div class="wrap">
   <header class="hero">
     <div>
-      <h1>📥 AI Inbox Summary</h1>
-      <p class="tagline">One good summary instead of the firehose — on your own cadence.</p>
+      <h1>AI Inbox Summary</h1>
+      <p class="tagline">One clear summary of your inbox, on a schedule you choose.</p>
     </div>
     <div class="hero-actions">
-      <a class="btn ghost" href="/debug/digest">🔎 Preview</a>
-      <a class="btn primary" href="/auth">➕ Connect a mailbox</a>
+      <a class="btn ghost" href="/debug/digest">Preview</a>
+      <a class="btn primary" href="/auth">Connect a mailbox</a>
     </div>
   </header>
 
@@ -230,15 +244,16 @@ async function post(url, body) {
 }
 function onCadence(sel) {
   const card = sel.closest(".card");
-  const daily = card.querySelector(".daily-time");
-  daily.style.display = sel.value === "daily" ? "" : "none";
+  const daily = sel.value === "daily";
+  card.querySelector(".interval").style.display = daily ? "none" : "";
+  card.querySelector(".daily-time").style.display = daily ? "" : "none";
 }
 function fields(btn) {
   const card = btn.closest(".card");
-  const cadSel = card.querySelector(".cadence").value;
-  const cadence = cadSel === "daily"
+  const mode = card.querySelector(".cadMode").value;
+  const cadence = mode === "daily"
     ? "daily:" + (card.querySelector(".dailyTime").value || "09:00")
-    : cadSel;
+    : "every:" + card.querySelector(".cadNum").value + card.querySelector(".cadUnit").value;
   return {
     el: card.querySelector(".status"),
     grantId: card.querySelector(".grantId").value,
@@ -249,26 +264,26 @@ function fields(btn) {
 }
 function flash(el, msg, kind) { el.textContent = msg; el.className = "status " + (kind || ""); }
 async function saveSchedule(btn) {
-  const f = fields(btn); flash(f.el, "Saving…");
+  const f = fields(btn); flash(f.el, "Saving");
   const { ok, data } = await post("/schedule", f);
-  flash(f.el, ok ? "✓ Saved" : "✗ " + (data.error || "error"), ok ? "ok" : "err");
+  flash(f.el, ok ? "Saved" : (data.error || "error"), ok ? "ok" : "err");
 }
 async function sendNow(btn) {
-  const f = fields(btn); flash(f.el, "Sending…");
+  const f = fields(btn); flash(f.el, "Sending");
   const { ok, data } = await post("/send-now", { grantId: f.grantId });
-  flash(f.el, ok ? "✓ Sent (" + data.messageCount + " msgs)" : "✗ " + (data.error || "error"), ok ? "ok" : "err");
+  flash(f.el, ok ? "Sent (" + data.messageCount + " msgs)" : (data.error || "error"), ok ? "ok" : "err");
 }
 async function setEnabled(btn, enabled) {
-  const f = fields(btn); flash(f.el, enabled ? "Resuming…" : "Pausing…");
+  const f = fields(btn); flash(f.el, enabled ? "Resuming" : "Pausing");
   const { ok, data } = await post("/schedule/enabled", { grantId: f.grantId, enabled });
-  if (ok) location.reload(); else flash(f.el, "✗ " + (data.error || "error"), "err");
+  if (ok) location.reload(); else flash(f.el, (data.error || "error"), "err");
 }
 async function disconnect(btn) {
   const f = fields(btn);
   if (!confirm("Disconnect this mailbox? This revokes the grant and deletes its local data.")) return;
-  flash(f.el, "Disconnecting…");
+  flash(f.el, "Disconnecting");
   const { ok, data } = await post("/disconnect", { grantId: f.grantId });
-  if (ok) location.reload(); else flash(f.el, "✗ " + (data.error || "error"), "err");
+  if (ok) location.reload(); else flash(f.el, (data.error || "error"), "err");
 }
 </script>
 </body></html>`;
@@ -314,6 +329,10 @@ body{margin:0;background:var(--bg);color:var(--ink);
   box-shadow:0 0 0 3px rgba(26,115,232,.15)}
 .daily-time{flex:none}
 .daily-time input{width:120px}
+.interval{flex:none}
+.interval-row{display:flex;gap:8px}
+.interval-row select{width:auto}
+.cadNum{min-width:62px}
 .actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:14px}
 .btn{font:inherit;font-size:13.5px;font-weight:500;cursor:pointer;border:1px solid var(--line);
   background:#fff;color:var(--ink);padding:8px 14px;border-radius:9px;text-decoration:none;
@@ -331,8 +350,7 @@ body{margin:0;background:var(--bg);color:var(--ink);
 .status.ok{color:var(--green)} .status.err{color:var(--red)}
 .empty{background:var(--card);border:1px solid var(--line);border-radius:16px;
   box-shadow:var(--shadow);text-align:center;padding:56px 24px}
-.empty-icon{font-size:42px}
-.empty h2{margin:10px 0 6px;font-size:19px}
+.empty h2{margin:0 0 6px;font-size:19px}
 .empty p{color:var(--muted);margin:0 auto 22px;max-width:360px}
 .foot{color:var(--muted);font-size:12.5px;text-align:center;margin-top:28px}
 @media(max-width:520px){.actions .danger{margin-left:0}}
