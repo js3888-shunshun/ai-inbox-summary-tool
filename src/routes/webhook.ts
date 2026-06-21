@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { FastifyPluginCallback, FastifyRequest } from "fastify";
 import type { DB } from "../db/index.js";
 import type { MailProvider } from "../mail/provider.js";
+import { isOwnDigest } from "../domain/digest.js";
 import { upsertMessage } from "../store/messages.js";
 
 interface WebhookDeps {
@@ -97,6 +98,11 @@ export function webhookPlugin(deps: WebhookDeps): FastifyPluginCallback {
       }
       // Always refetch the full message: handles truncated payloads uniformly.
       const full = await mail.getMessage(grantId, messageId);
+      // Never ingest the app's own digest emails (avoids self-summarizing loops).
+      if (isOwnDigest(full.subject)) {
+        fastify.log.info({ messageId }, "skipped own digest email");
+        return;
+      }
       const inserted = upsertMessage(db, full);
       fastify.log.info({ messageId, inserted }, "webhook message ingested");
     }

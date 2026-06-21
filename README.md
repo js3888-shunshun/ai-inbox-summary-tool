@@ -134,6 +134,13 @@ message** rather than trusting the webhook body. A `summarized` flag marks what 
 digest has already covered, so the next window only includes new mail (no
 refetching the whole mailbox).
 
+**Self-reference.** When the digest's destination is the connected mailbox
+itself, each digest email lands back in the inbox. Digests are tagged with a known
+subject prefix and filtered out of ingestion and summarization, so the app never
+summarizes its own output ("meta-digests"). Manual *Send digest now* summarizes a
+snapshot of the recent inbox (matching the preview); the scheduled digest covers
+only mail accumulated since the last one.
+
 **The AI seam is a clean, testable boundary.** Three explicit steps — assemble
 (`buildSummaryPrompt`), call (an injected `CompletionFn`), parse
 (`parseDigest`, which validates the model's JSON with zod). The model is asked

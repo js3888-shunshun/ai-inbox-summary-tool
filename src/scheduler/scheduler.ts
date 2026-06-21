@@ -1,8 +1,9 @@
 import type { FastifyBaseLogger } from "fastify";
 import type { DB } from "../db/index.js";
 import type { MailProvider } from "../mail/provider.js";
-import type { Summarizer } from "../ai/summarizer.js";
-import type { Grant, Schedule } from "../domain/types.js";
+import type { Digest, Summarizer } from "../ai/summarizer.js";
+import type { EmailMessage, Grant, Schedule } from "../domain/types.js";
+import { digestSubject, excludeOwnDigests } from "../domain/digest.js";
 import { getGrant } from "../store/grants.js";
 import { listUnsummarized, markSummarized } from "../store/messages.js";
 import { listEnabledSchedules } from "../store/schedules.js";
@@ -27,20 +28,15 @@ function renderEmailBody(headline: string, body: string): string {
   );
 }
 
-/** Compose a digest from the given messages, send it, and mark them summarized. */
-async function composeAndSend(deps: SchedulerDeps, grant: Grant): Promise<number> {
-  const messages = listUnsummarized(deps.db, grant.grantId);
+/** Summarize the given messages and email the digest to the grant's destination. */
+async function composeAndSend(deps: SchedulerDeps, grant: Grant, messages: EmailMessage[]): Promise<Digest> {
   const digest = await deps.summarizer.summarize(messages);
   await deps.mail.sendEmail(grant.grantId, {
     to: grant.destinationEmail,
-    subject: `📥 Inbox digest — ${digest.headline}`,
+    subject: digestSubject(digest.headline),
     body: renderEmailBody(digest.headline, digest.body),
   });
-  markSummarized(
-    deps.db,
-    messages.map((m) => m.id),
-  );
-  return digest.messageCount;
+  return digest;
 }
 
 /**
@@ -61,12 +57,17 @@ export async function runScheduledDigest(
     return "skipped"; // window already handled
   }
   try {
-    const messages = listUnsummarized(deps.db, grant.grantId);
+    // "Since last digest": mail accumulated by the webhook, minus our own digests.
+    const messages = excludeOwnDigests(listUnsummarized(deps.db, grant.grantId));
     if (messages.length === 0) {
       deps.log.info({ grantId: grant.grantId, windowKey }, "no new mail; window consumed");
       return "empty";
     }
-    await composeAndSend(deps, grant);
+    await composeAndSend(deps, grant, messages);
+    markSummarized(
+      deps.db,
+      messages.map((m) => m.id),
+    );
     deps.log.info({ grantId: grant.grantId, windowKey, count: messages.length }, "digest sent");
     return "sent";
   } catch (err) {
@@ -85,9 +86,15 @@ export async function runSchedulerTick(deps: SchedulerDeps, nowMs: number = Date
   }
 }
 
-/** Manual trigger (ignores cadence/idempotency) — used by the "send now" button. */
-export async function sendDigestNow(deps: SchedulerDeps, grant: Grant): Promise<number> {
-  return composeAndSend(deps, grant);
+/**
+ * Manual trigger — summarizes a snapshot of the recent inbox (like the preview),
+ * so it is always meaningful regardless of accumulation state. Does not touch the
+ * since-last accounting used by the scheduled path.
+ */
+export async function sendDigestNow(deps: SchedulerDeps, grant: Grant, limit = 30): Promise<number> {
+  const messages = excludeOwnDigests(await deps.mail.listMessages(grant.grantId, { limit }));
+  const digest = await composeAndSend(deps, grant, messages);
+  return digest.messageCount;
 }
 
 /** Start the polling loop. Returns a stop function. */

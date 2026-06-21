@@ -3,6 +3,7 @@ import type { DB } from "../db/index.js";
 import type { MailProvider } from "../mail/provider.js";
 import type { Summarizer } from "../ai/summarizer.js";
 import { listGrants } from "../store/grants.js";
+import { excludeOwnDigests } from "../domain/digest.js";
 
 interface DigestDeps {
   db: DB;
@@ -31,7 +32,7 @@ export function registerDigestRoutes(app: FastifyInstance, deps: DigestDeps): vo
     }
 
     const limit = Math.min(Math.max(Number(q.limit ?? 30) || 30, 1), 100);
-    const messages = await mail.listMessages(grantId, { limit });
+    const messages = excludeOwnDigests(await mail.listMessages(grantId, { limit }));
     const digest = await summarizer.summarize(messages);
 
     return reply
