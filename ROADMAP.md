@@ -91,12 +91,12 @@ before moving on. Mirrors the task list (M0–M5).
 
 **Goal:** ship something defensible.
 
-- [ ] README: install, env config, run, **how the webhook is exposed (HTTPS on the VM)**,
+- [x] README: install, env config, run, **how the webhook is exposed (HTTPS on the VM)**,
       **Nylas app setup from scratch**, end-to-end flow, design tradeoffs, "what I'd do with more time".
-- [ ] No `any`; secrets/bodies/tokens never logged.
-- [ ] Deployed on the VM; webhook reachable from the public internet.
-- [ ] Short demo video: connect mailbox → incoming email picked up via webhook → summary arrives at destination.
-- [ ] Clean, incremental git history.
+- [x] No `any` (strict tsconfig, `typecheck` clean); logger redacts auth + signature headers; bodies/tokens never logged.
+- [x] Deployed on the VM via **systemd** (`ai-inbox` + `caddy`, auto-start on boot, auto-restart on crash); webhook reachable over public HTTPS.
+- [ ] Short demo video: connect mailbox → incoming email picked up via webhook → summary arrives at destination. _(to record)_
+- [x] Clean, incremental git history (commit per milestone + fixes).
 
 ---
 
