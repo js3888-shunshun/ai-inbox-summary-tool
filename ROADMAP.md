@@ -110,21 +110,24 @@ product. Each item is discussed with the user before building.
       browser blocks auto-close). Document the provider scope: any Nylas-enabled
       provider works (Google / Microsoft / IMAP / …), gated by the owner's OAuth
       consent — not Google-only, and a mailbox can't be connected without consent.
-- [ ] **6.2 Digest email redesign** — cleaner, scannable HTML: structured sections
-      (urgent / needs reply / FYI / skippable) with visual hierarchy and color, so
-      the point lands at a glance. Touches the AI seam (structured model output +
-      zod) and the email template; also revisit the `📥 Inbox digest` subject prefix
-      (it doubles as the self-loop filter, so any change updates that logic too).
-      _(I'll draft a first version for review.)_
+- [x] **6.2 Digest email redesign** ✅ — structured, color-coded HTML: the AI seam
+      now returns `headline + sections[{title, tone, items[{from, summary}]}]` with
+      tone in {urgent, action, info}, validated by zod (tone defaults to info,
+      missing sender to empty, empty sections rejected). A shared inline-styled
+      renderer (`src/email/render.ts`) drives both the scheduled email and the
+      `/debug` preview so they match. Subject prefix de-emoji'd to `Inbox digest:`
+      (legacy prefix still recognized for self-loop filtering). _(First pass; can
+      iterate further from a user-supplied template.)_
 - [x] **6.3 Web UI redesign** ✅ — card layout, proper buttons, **cadence as a
       number + unit dropdown** (`Every N minutes/hours`) plus a `Daily at` time
       picker, and a full IANA **timezone dropdown**. Same `POST /schedule` API
       underneath. Plain copy: no arrows / em-dashes / emoji / check glyphs.
-- [ ] **6.4 Test-mail generator** _(optional, low priority)_ — a dev script to send
-      a batch of synthetic emails so the webhook→ingest→digest pipeline can be
-      exercised without hand-sending from another account. _(Caveat: a single grant
-      can only send as its own address; varied senders need a second mailbox or
-      direct DB seeding. Feasibility discussed before building.)_
+- [x] **6.4 Test-mail generator** ✅ _(optional)_ — `npm run seed:mail` sends a
+      batch of varied, realistic synthetic emails (spanning urgent / action / info
+      tones) to the connected mailbox via Nylas, so the webhook→ingest→digest
+      pipeline can be exercised without hand-sending from another account. Caveat as
+      discussed: a single grant can only send as its own address, so the From is
+      always the connected mailbox; the variety is in subject/body/tone.
 - [ ] **6.5 Multi-tenant (the real product gap)** — today `/` is a single shared,
       unauthenticated dashboard: anyone who reaches the URL sees and can edit *all*
       connected mailboxes. To be a broadly deployable product it needs (a) real

@@ -13,7 +13,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "register:webhook": "tsx scripts/register-webhook.ts"
+    "register:webhook": "tsx scripts/register-webhook.ts",
+    "seed:mail": "tsx scripts/seed-test-mail.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.65.0",

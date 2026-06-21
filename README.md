@@ -103,6 +103,21 @@ callback/webhook URLs hang off it.
 
 ---
 
+## Generate test mail (optional)
+
+To exercise the pipeline without hand-sending from another account:
+
+```bash
+npm run seed:mail               # one of each built-in template
+npm run seed:mail -- --count 6  # cycle to N messages
+```
+
+Messages are sent via Nylas to the connected mailbox's own address, so they land
+in the inbox and trigger the `message.created` webhook. A single grant can only
+send *as* its own address, so the From is always the connected mailbox — the
+variety is in subject/body/tone (urgent / action / info), which is what the digest
+groups on.
+
 ## End-to-end flow
 
 1. **Connect** — open `/`, click *Connect a mailbox*. Hosted auth opens in a **new tab**; after you sign in and grant consent at your provider, the tab closes itself and the dashboard refreshes with the new mailbox listed. Any provider enabled for your Nylas app works (Google, Microsoft/Outlook, IMAP, …); connecting always requires the mailbox owner's OAuth consent, so you can't connect a mailbox without the owner signing in. **Connect as many mailboxes as you like** — each is an independent grant with its own cadence, destination, and on/off switch.
@@ -192,6 +207,7 @@ src/
   store/               SQLite data access
   routes/              auth · webhook · settings · digest
 scripts/register-webhook.ts   one-off: create the Nylas message.created webhook
+scripts/seed-test-mail.ts     dev: send synthetic test emails into the pipeline
 test/                  vitest unit tests (ai · webhook · scheduler)
 ```
 
