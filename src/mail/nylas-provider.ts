@@ -82,7 +82,17 @@ export class NylasMailProvider implements MailProvider {
     return toEmailMessage(res.data);
   }
 
-  sendEmail(): Promise<void> {
-    throw new Error("NylasMailProvider.sendEmail not implemented yet (M4)");
+  async sendEmail(
+    grantId: string,
+    msg: { to: string; subject: string; body: string },
+  ): Promise<void> {
+    await this.nylas.messages.send({
+      identifier: grantId,
+      requestBody: {
+        to: [{ email: msg.to }],
+        subject: msg.subject,
+        body: msg.body,
+      },
+    });
   }
 }
