@@ -55,10 +55,11 @@ export function registerSettingsRoutes(app: FastifyInstance, deps: SettingsDeps)
   });
 
   app.post("/send-now", async (req, reply) => {
-    const b = req.body as ScheduleBody;
+    const b = req.body as ScheduleBody & { limit?: number };
     const grant = b.grantId ? getGrant(db, b.grantId) : undefined;
     if (!grant) return reply.code(400).send({ error: "unknown grantId" });
-    const messageCount = await sendDigestNow({ ...deps, log: app.log }, grant);
+    const limit = Math.min(Math.max(Number(b.limit) || 30, 1), 100);
+    const messageCount = await sendDigestNow({ ...deps, log: app.log }, grant, limit);
     return reply.send({ ok: true, messageCount });
   });
 
@@ -210,7 +211,15 @@ function renderCard(g: { grantId: string; email: string; destinationEmail: strin
   <footer class="actions">
     <button class="btn primary" onclick="saveSchedule(this)">Save</button>
     ${toggle}
-    <button class="btn" onclick="sendNow(this)">Send digest now</button>
+    <span class="send-group">
+      <button class="btn" onclick="sendNow(this)">Send digest now</button>
+      <select class="sendLimit" title="How many recent inbox emails to summarize">
+        <option value="10">last 10</option>
+        <option value="20">last 20</option>
+        <option value="30" selected>last 30</option>
+        <option value="50">last 50</option>
+      </select>
+    </span>
     <span class="status"></span>
     <button class="btn danger" onclick="disconnect(this)">Disconnect</button>
   </footer>
@@ -321,8 +330,10 @@ async function saveSchedule(btn) {
   flash(f.el, ok ? "Saved" : (data.error || "error"), ok ? "ok" : "err");
 }
 async function sendNow(btn) {
-  const f = fields(btn); flash(f.el, "Sending");
-  const { ok, data } = await post("/send-now", { grantId: f.grantId });
+  const f = fields(btn);
+  const limit = Number(btn.closest(".card").querySelector(".sendLimit").value) || 30;
+  flash(f.el, "Sending");
+  const { ok, data } = await post("/send-now", { grantId: f.grantId, limit });
   flash(f.el, ok ? "Sent (" + data.messageCount + " msgs)" : (data.error || "error"), ok ? "ok" : "err");
 }
 async function setEnabled(btn, enabled) {
@@ -406,6 +417,9 @@ body{margin:0;background:var(--bg);color:var(--ink);
 .btn.danger{color:var(--red);border-color:transparent}
 .btn.danger:hover{background:#fdecec}
 .btn.lg{font-size:15px;padding:11px 20px}
+.send-group{display:inline-flex;gap:6px;align-items:center}
+.sendLimit{font:inherit;font-size:13px;color:var(--ink);background:#fff;border:1px solid var(--line);
+  border-radius:8px;padding:7px 8px}
 .actions .danger{margin-left:auto}
 .status{font-size:13px;color:var(--muted);min-height:1em}
 .status.ok{color:var(--green)} .status.err{color:var(--red)}
