@@ -94,10 +94,12 @@ export async function runSchedulerTick(deps: SchedulerDeps, nowMs: number = Date
  * since-last accounting used by the scheduled path.
  */
 export async function sendDigestNow(deps: SchedulerDeps, grant: Grant, limit = 30): Promise<number> {
-  // Fetch a small buffer beyond `limit` so the app's own digests can be filtered
-  // out without shrinking the effective count, then trim to the requested limit —
-  // so "last N" means up to N real (non-digest) inbox emails.
-  const fetchN = Math.min(limit + 10, 100);
+  // Fetch with generous headroom beyond `limit` so the app's own digests (which
+  // land back in the inbox when the destination is the mailbox itself) can be
+  // filtered out without shrinking the effective count, then trim to `limit` — so
+  // "last N" means up to N real (non-digest) inbox emails. Capped at the Nylas
+  // single-page max of 100.
+  const fetchN = Math.min(limit * 2 + 20, 100);
   const recent = excludeOwnDigests(await deps.mail.listMessages(grant.grantId, { limit: fetchN }));
   const messages = recent.slice(0, limit);
   const digest = await composeAndSend(deps, grant, messages);
