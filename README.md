@@ -105,7 +105,9 @@ callback/webhook URLs hang off it.
 
 ## Generate test mail (optional)
 
-To exercise the pipeline without hand-sending from another account:
+To exercise the pipeline without hand-sending from another account, use either the
+**Testing panel** at the bottom of the home page (pick a mailbox + count, click
+*Send test emails*) or the CLI:
 
 ```bash
 npm run seed:mail               # one of each built-in template

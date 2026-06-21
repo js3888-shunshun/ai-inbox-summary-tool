@@ -6,6 +6,7 @@ import { deleteGrantCascade, getGrant, listGrants, setDestinationEmail } from ".
 import { getSchedule, saveSchedule, setScheduleEnabled } from "../store/schedules.js";
 import { isValidCadence } from "../scheduler/cadence.js";
 import { sendDigestNow } from "../scheduler/scheduler.js";
+import { sendTestEmails } from "../email/test-mail.js";
 
 interface SettingsDeps {
   db: DB;
@@ -71,6 +72,21 @@ export function registerSettingsRoutes(app: FastifyInstance, deps: SettingsDeps)
       return reply.code(400).send({ error: "no schedule to update, save one first" });
     }
     return reply.send({ ok: true, enabled: b.enabled === true });
+  });
+
+  // Testing: send a batch of synthetic emails into a mailbox to exercise the pipeline.
+  app.post("/test-mail", async (req, reply) => {
+    const b = req.body as { grantId?: string; count?: number };
+    const grant = b.grantId ? getGrant(db, b.grantId) : undefined;
+    if (!grant) return reply.code(400).send({ error: "unknown grantId" });
+    const count = Math.max(1, Math.min(Number(b.count) || 1, 10));
+    try {
+      const sent = await sendTestEmails(deps.mail, grant.grantId, grant.email, count);
+      return reply.send({ ok: true, count: sent.length });
+    } catch (err) {
+      app.log.error({ err, grantId: grant.grantId }, "test-mail send failed");
+      return reply.code(502).send({ error: "send failed" });
+    }
   });
 
   // Disconnect a mailbox: revoke the grant on Nylas, then drop all local data.
@@ -201,6 +217,33 @@ function renderCard(g: { grantId: string; email: string; destinationEmail: strin
 </article>`;
 }
 
+/** A small dev/testing panel: pick a mailbox + count, send synthetic emails. */
+function renderTestPanel(grants: ReadonlyArray<{ grantId: string; email: string }>): string {
+  if (grants.length === 0) return "";
+  const opts = grants
+    .map((g) => `<option value="${esc(g.grantId)}">${esc(g.email)}</option>`)
+    .join("");
+  return `
+<div class="card test-card">
+  <div class="test-head">
+    <h2 class="test-title">Testing</h2>
+    <p class="test-sub">Send synthetic emails to a connected mailbox to exercise the webhook and digest pipeline. They arrive in that inbox and are picked up like any other mail.</p>
+  </div>
+  <div class="fields">
+    <label class="field grow"><span>Mailbox</span>
+      <select class="testGrant">${opts}</select>
+    </label>
+    <label class="field"><span>How many</span>
+      <input class="testCount" type="number" min="1" max="10" value="3">
+    </label>
+  </div>
+  <div class="actions">
+    <button class="btn primary" onclick="sendTest(this)">Send test emails</button>
+    <span class="status testStatus"></span>
+  </div>
+</div>`;
+}
+
 function renderHome(db: DB): string {
   const grants = listGrants(db);
   const cards = grants.map((g) => renderCard(g, db)).join("");
@@ -232,6 +275,8 @@ function renderHome(db: DB): string {
   ${grants.length
     ? `<div class="section-head"><h2>Connected mailboxes</h2><span class="count">${grants.length}</span></div>${cards}`
     : empty}
+
+  ${renderTestPanel(grants)}
 
   <footer class="foot">
     Each mailbox gets its own cadence, destination, and on/off switch. Built on Nylas + Claude.
@@ -291,6 +336,15 @@ async function disconnect(btn) {
   flash(f.el, "Disconnecting");
   const { ok, data } = await post("/disconnect", { grantId: f.grantId });
   if (ok) location.reload(); else flash(f.el, (data.error || "error"), "err");
+}
+async function sendTest(btn) {
+  const card = btn.closest(".card");
+  const el = card.querySelector(".testStatus");
+  const grantId = card.querySelector(".testGrant").value;
+  const count = Number(card.querySelector(".testCount").value) || 1;
+  flash(el, "Sending");
+  const { ok, data } = await post("/test-mail", { grantId, count });
+  flash(el, ok ? "Sent " + data.count + " test email(s). They will appear shortly, then show up in the next digest." : (data.error || "error"), ok ? "ok" : "err");
 }
 </script>
 </body></html>`;
@@ -359,6 +413,12 @@ body{margin:0;background:var(--bg);color:var(--ink);
   box-shadow:var(--shadow);text-align:center;padding:56px 24px}
 .empty h2{margin:0 0 6px;font-size:19px}
 .empty p{color:var(--muted);margin:0 auto 22px;max-width:360px}
+.test-card{background:#fafbfc;border-style:dashed}
+.test-head{margin-bottom:14px}
+.test-title{font-size:15px;margin:0;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.test-sub{color:var(--muted);font-size:13px;margin:6px 0 0;max-width:560px}
+.test-card .actions{border-top:none;padding-top:0}
+.test-card .testCount{width:80px}
 .foot{color:var(--muted);font-size:12.5px;text-align:center;margin-top:28px}
 @media(max-width:520px){.actions .danger{margin-left:0}}
 `;
