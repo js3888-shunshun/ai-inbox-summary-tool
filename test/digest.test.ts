@@ -1,8 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { isOwnDigest, digestSubject, excludeOwnDigests } from "../src/domain/digest.js";
+import {
+  isOwnDigest,
+  digestSubject,
+  excludeOwnDigests,
+  excludeNoisyCategories,
+} from "../src/domain/digest.js";
 import type { EmailMessage } from "../src/domain/types.js";
 
-function msg(subject: string): EmailMessage {
+function msg(subject: string, folders?: string[]): EmailMessage {
   return {
     id: subject,
     grantId: "g1",
@@ -13,6 +18,7 @@ function msg(subject: string): EmailMessage {
     snippet: "",
     receivedAt: 0,
     unread: false,
+    ...(folders ? { folders } : {}),
   };
 }
 
@@ -29,5 +35,21 @@ describe("own-digest detection", () => {
       msg("Invoice #42"),
     ]);
     expect(kept.map((m) => m.subject)).toEqual(["Q3 budget", "Invoice #42"]);
+  });
+});
+
+describe("Gmail category filtering", () => {
+  it("drops Promotions and Social, keeps Primary and Updates", () => {
+    const kept = excludeNoisyCategories([
+      msg("Wayne Yang interview", []), // Primary (no category)
+      msg("USCIS case update", ["INBOX", "CATEGORY_UPDATES"]),
+      msg("Devpost hackathons", ["INBOX", "CATEGORY_PROMOTIONS"]),
+      msg("LinkedIn invite", ["INBOX", "CATEGORY_SOCIAL"]),
+    ]);
+    expect(kept.map((m) => m.subject)).toEqual(["Wayne Yang interview", "USCIS case update"]);
+  });
+
+  it("keeps messages with no folder info", () => {
+    expect(excludeNoisyCategories([msg("no folders")]).map((m) => m.subject)).toEqual(["no folders"]);
   });
 });

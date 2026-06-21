@@ -29,3 +29,19 @@ export function isOwnDigest(subject: string): boolean {
 export function excludeOwnDigests(messages: EmailMessage[]): EmailMessage[] {
   return messages.filter((m) => !isOwnDigest(m.subject));
 }
+
+/**
+ * Gmail category labels we treat as low-signal and keep out of the digest, so the
+ * Promotions and Social tabs (which `in:["INBOX"]` would otherwise include) don't
+ * bury real Primary/Updates mail. Primary and Updates (USCIS, banks, job
+ * applications) are kept.
+ */
+const NOISY_CATEGORIES = ["CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL"];
+
+export function isNoisyCategory(m: EmailMessage): boolean {
+  return m.folders?.some((f) => NOISY_CATEGORIES.includes(f)) ?? false;
+}
+
+export function excludeNoisyCategories(messages: EmailMessage[]): EmailMessage[] {
+  return messages.filter((m) => !isNoisyCategory(m));
+}

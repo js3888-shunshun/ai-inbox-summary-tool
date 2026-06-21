@@ -3,7 +3,7 @@ import type { DB } from "../db/index.js";
 import type { MailProvider } from "../mail/provider.js";
 import type { Digest, Summarizer } from "../ai/summarizer.js";
 import type { EmailMessage, Grant, Schedule } from "../domain/types.js";
-import { digestSubject, excludeOwnDigests } from "../domain/digest.js";
+import { digestSubject, excludeOwnDigests, excludeNoisyCategories, isNoisyCategory } from "../domain/digest.js";
 import { renderDigestHtml } from "../email/render.js";
 import { getGrant } from "../store/grants.js";
 import { listUnsummarized, markSummarized } from "../store/messages.js";
@@ -56,11 +56,15 @@ export async function runScheduledDigest(
       return "empty";
     }
     // Validate against the live inbox so mail deleted or moved (to spam/trash)
-    // since it arrived is excluded — the digest reflects the current inbox.
-    const liveIds = new Set(
-      (await deps.mail.listMessages(grant.grantId, { limit: 100 })).map((m) => m.id),
-    );
-    const inInbox = accumulated.filter((m) => liveIds.has(m.id));
+    // since it arrived is excluded — the digest reflects the current inbox. The
+    // live copy also carries up-to-date Gmail category labels, so Promotions/Social
+    // are dropped here too.
+    const live = await deps.mail.listMessages(grant.grantId, { limit: 100 });
+    const liveById = new Map(live.map((m) => [m.id, m]));
+    const inInbox = accumulated.filter((m) => {
+      const lm = liveById.get(m.id);
+      return lm !== undefined && !isNoisyCategory(lm);
+    });
     const consumedIds = accumulated.map((m) => m.id); // advance the watermark for all
 
     if (inInbox.length === 0) {
@@ -100,7 +104,9 @@ export async function sendDigestNow(deps: SchedulerDeps, grant: Grant, limit = 3
   // "last N" means up to N real (non-digest) inbox emails. Capped at the Nylas
   // single-page max of 100.
   const fetchN = Math.min(limit * 2 + 20, 100);
-  const recent = excludeOwnDigests(await deps.mail.listMessages(grant.grantId, { limit: fetchN }));
+  const recent = excludeNoisyCategories(
+    excludeOwnDigests(await deps.mail.listMessages(grant.grantId, { limit: fetchN })),
+  );
   const messages = recent.slice(0, limit);
   const digest = await composeAndSend(deps, grant, messages);
   return digest.messageCount;
