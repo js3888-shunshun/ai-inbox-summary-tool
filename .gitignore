@@ -1,0 +1,22 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+
+# secrets — never commit
+.env
+.env.local
+*.local
+
+# sqlite data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+data/
+
+# logs / os
+*.log
+.DS_Store
