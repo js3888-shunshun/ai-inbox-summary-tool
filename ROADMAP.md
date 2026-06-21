@@ -76,18 +76,18 @@ before moving on. Mirrors the task list (M0–M5).
       **out-of-order** events, **truncated** payloads (always refetch full message).
 - [x] _(verified live)_ real test email → event → HMAC-verified → ingested into `messages`.
 
-## M4 — Configurable cadence + scheduled send 🔨 IN PROGRESS
+## M4 — Configurable cadence + scheduled send ✅ DONE
 
 **Goal:** durable, per-grant, exactly-once scheduled digests.
 
-- [ ] User sets cadence (e.g. `hourly`, `every:3h`, `daily:09:00`) → persisted; **changing it needs no code change**.
-- [ ] DB-backed scheduler fires a due window → builds digest → `POST .../messages/send` to the destination address.
-- [ ] **Survives restart:** schedule + next-due state live in SQLite, not memory.
-- [ ] **Per-grant:** different grants can be on different cadences.
-- [ ] **Exactly once:** a `sent_windows` idempotency key guarantees one email per
-      window even across restart, double-run, or multiple instances.
+- [x] User sets cadence (`hourly`, `every:5m`, `every:2h`, `daily:09:00`) via `POST /schedule` → persisted; **no code change**.
+- [x] DB-backed scheduler (60s poll) fires a due window → builds digest → sends via Nylas to the destination address.
+- [x] **Survives restart:** schedule + `sent_windows` live in SQLite. _(verified: restarted, both persisted.)_
+- [x] **Per-grant:** schedules keyed by grant; the tick iterates each enabled schedule.
+- [x] **Exactly once:** `claimWindow` (INSERT OR IGNORE on `sent_windows` PK) claims a window before sending; second run → `skipped`. _(unit-tested + live windowKey recorded.)_
+- [x] _(verified live)_ set `every:2m` → scheduler auto-fired → `digest sent`, idempotency row written. Plus `POST /send-now` for manual digests.
 
-## M5 — Polish + deliverables
+## M5 — Polish + deliverables 🔨 IN PROGRESS
 
 **Goal:** ship something defensible.
 
