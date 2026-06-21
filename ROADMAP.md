@@ -53,19 +53,18 @@ before moving on. Mirrors the task list (M0–M5).
 - [x] All Nylas calls sit behind a `MailProvider` interface (vendor type does not leak).
 - [x] _(infra)_ HTTPS on the VM: Caddy + Let's Encrypt cert for `135-148-170-25.sslip.io` → reverse-proxy to `:3000` (Nylas rejects non-localhost http callbacks).
 
-## M2 — Read inbox + AI summary seam 🔨 IN PROGRESS
+## M2 — Read inbox + AI summary seam ✅ DONE
 
 **Goal:** a clean, testable summarization seam producing a *useful* digest.
 
-- [ ] Read recent messages via `GET /v3/grants/{id}/messages` with deliberate
-      pagination (bounded pull; do **not** refetch the whole mailbox).
-- [ ] Map provider payload → `EmailMessage` (sender, subject, date, snippet, unread).
-- [ ] AI seam is three explicit boundaries: **assemble input → call model → parse output**.
-- [ ] `summarize(messages): Digest` is unit-tested with a **fake** Summarizer (no live mailbox, no real LLM needed).
-- [ ] Real Claude run yields a genuinely useful digest: who matters, asks awaiting
-      a reply, deadlines — not a list of subjects.
+- [x] Read recent messages via `GET /v3/grants/{id}/messages` with deliberate
+      pagination (bounded `limit`, optional `receivedAfter`; INBOX only).
+- [x] Map provider payload → `EmailMessage` (sender, subject, date, snippet, unread).
+- [x] AI seam is three explicit boundaries: **assemble input → call model → parse output** (`prompt.ts` / injected `CompletionFn` / `parse.ts`).
+- [x] `summarize(messages): Digest` is unit-tested with a **fake** completion (8 tests; no live mailbox, no real LLM needed).
+- [x] Real Claude run yields a genuinely useful digest. _(verified live via `/debug/digest`: grouped urgent/asks/deadlines vs skippable marketing.)_
 
-## M3 — Webhook ingestion (`message.created`)
+## M3 — Webhook ingestion (`message.created`) 🔨 IN PROGRESS
 
 **Goal:** reliably accumulate incoming mail since the last summary.
 
