@@ -1,7 +1,24 @@
 import Nylas from "nylas";
+import type { Message } from "nylas";
 import type { MailProvider } from "./provider.js";
 import type { EmailMessage } from "../domain/types.js";
 import type { Config } from "../config.js";
+
+/** Map a Nylas Message into our provider-agnostic EmailMessage. */
+export function toEmailMessage(m: Message): EmailMessage {
+  const sender = m.from?.[0];
+  return {
+    id: m.id,
+    grantId: m.grantId,
+    threadId: m.threadId ?? null,
+    from: sender?.name?.trim() || sender?.email || "(unknown sender)",
+    fromEmail: sender?.email ?? "",
+    subject: m.subject?.trim() || "(no subject)",
+    snippet: m.snippet ?? "",
+    receivedAt: m.date,
+    unread: m.unread ?? false,
+  };
+}
 
 /**
  * Nylas-backed implementation of MailProvider. This is the only file that knows
@@ -39,11 +56,27 @@ export class NylasMailProvider implements MailProvider {
     return { grantId: res.grantId, email: res.email ?? "" };
   }
 
-  // ---- Implemented in M2 (read) / M3 (webhook refetch) / M4 (send) ----
-
-  listMessages(): Promise<EmailMessage[]> {
-    throw new Error("NylasMailProvider.listMessages not implemented yet (M2)");
+  /**
+   * Read recent INBOX messages. Bounded by `limit` (single page) and optionally
+   * `receivedAfter` so the scheduler pulls only mail since the last digest
+   * rather than refetching the whole mailbox.
+   */
+  async listMessages(
+    grantId: string,
+    opts: { limit: number; receivedAfter?: number },
+  ): Promise<EmailMessage[]> {
+    const res = await this.nylas.messages.list({
+      identifier: grantId,
+      queryParams: {
+        limit: opts.limit,
+        in: ["INBOX"],
+        ...(opts.receivedAfter !== undefined ? { receivedAfter: opts.receivedAfter } : {}),
+      },
+    });
+    return res.data.map(toEmailMessage);
   }
+
+  // ---- Implemented in M3 (webhook refetch) / M4 (send) ----
 
   getMessage(): Promise<EmailMessage> {
     throw new Error("NylasMailProvider.getMessage not implemented yet (M3)");

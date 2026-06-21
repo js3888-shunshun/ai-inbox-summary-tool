@@ -2,7 +2,10 @@ import Fastify from "fastify";
 import { loadConfig } from "./config.js";
 import { openDb } from "./db/index.js";
 import { NylasMailProvider } from "./mail/nylas-provider.js";
+import { ClaudeSummarizer } from "./ai/claude-summarizer.js";
+import { anthropicCompletion } from "./ai/anthropic.js";
 import { registerAuthRoutes } from "./routes/auth.js";
+import { registerDigestRoutes } from "./routes/digest.js";
 
 /**
  * Composition root: load+validate config, open the DB, wire routes, listen.
@@ -22,6 +25,7 @@ async function main(): Promise<void> {
   });
 
   const mail = new NylasMailProvider(config.nylas);
+  const summarizer = new ClaudeSummarizer(anthropicCompletion(config.llm));
 
   app.get("/health", async () => ({ ok: true }));
 
@@ -30,6 +34,7 @@ async function main(): Promise<void> {
     mail,
     redirectUri: `${config.publicBaseUrl}/oauth/callback`,
   });
+  registerDigestRoutes(app, { db, mail, summarizer });
 
   // TODO(M3): app.register(webhookRoutes, { config, db, mail })
   // TODO(M4): start scheduler(config, db, mail, summarizer)
