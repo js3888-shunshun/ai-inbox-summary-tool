@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import Fastify, { type FastifyInstance } from "fastify";
 import { openDb, type DB } from "../src/db/index.js";
 import { webhookPlugin } from "../src/routes/webhook.js";
+import { saveGrant } from "../src/store/grants.js";
 import type { MailProvider } from "../src/mail/provider.js";
 import type { EmailMessage } from "../src/domain/types.js";
 
@@ -43,6 +44,8 @@ let db: DB;
 
 beforeEach(async () => {
   db = openDb(":memory:");
+  // messages.grant_id is a FK; the connected grant must exist first.
+  saveGrant(db, { grantId: "g1", email: "u@example.com", destinationEmail: "u@example.com", createdAt: Date.now() });
   app = Fastify();
   await app.register(webhookPlugin({ db, mail: fakeMail(), webhookSecret: SECRET }));
   await app.ready();
