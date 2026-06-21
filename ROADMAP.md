@@ -64,18 +64,19 @@ before moving on. Mirrors the task list (M0–M5).
 - [x] `summarize(messages): Digest` is unit-tested with a **fake** completion (8 tests; no live mailbox, no real LLM needed).
 - [x] Real Claude run yields a genuinely useful digest. _(verified live via `/debug/digest`: grouped urgent/asks/deadlines vs skippable marketing.)_
 
-## M3 — Webhook ingestion (`message.created`) 🔨 IN PROGRESS
+## M3 — Webhook ingestion (`message.created`) ✅ DONE
 
 **Goal:** reliably accumulate incoming mail since the last summary.
 
-- [ ] Webhook registered and pointed at `PUBLIC_BASE_URL/webhooks/nylas`.
-- [ ] Challenge/verification handshake completed (echo `challenge`).
-- [ ] `x-nylas-signature` HMAC verified **before** trusting payload; bad signature → 401. (tested both ways)
-- [ ] Returns `200` fast; heavy work (refetch/store) happens outside the request.
-- [ ] Tolerates webhook realities: **duplicate** deliveries (idempotent upsert),
-      **out-of-order** events, **truncated** payloads (refetch full message when needed).
+- [x] Webhook registered and pointed at `PUBLIC_BASE_URL/webhooks/nylas` (via `npm run register:webhook`).
+- [x] Challenge/verification handshake completed (echo `challenge`). _(passed during registration)_
+- [x] `x-nylas-signature` HMAC verified **before** trusting payload; bad signature → 401. _(tested both ways)_
+- [x] Returns `200` fast; heavy work (refetch/store) happens outside the request (`setImmediate`).
+- [x] Tolerates webhook realities: **duplicate** deliveries (idempotent upsert),
+      **out-of-order** events, **truncated** payloads (always refetch full message).
+- [x] _(verified live)_ real test email → event → HMAC-verified → ingested into `messages`.
 
-## M4 — Configurable cadence + scheduled send
+## M4 — Configurable cadence + scheduled send 🔨 IN PROGRESS
 
 **Goal:** durable, per-grant, exactly-once scheduled digests.
 
