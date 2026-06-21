@@ -1,10 +1,15 @@
--- SQLite schema. Applied idempotently on boot (see db/index.ts).
--- WAL mode + these tables back the four durability requirements:
---   grants        -> grantId survives restarts
---   messages      -> de-duplicated ingestion of incoming mail
---   schedules     -> per-grant cadence, configurable without code changes
---   sent_windows  -> exactly-once digest per (grant, window)
-
+/**
+ * SQLite schema, applied idempotently on boot. Kept as a TS string (not a .sql
+ * file) so it ships in the compiled `dist/` build with no extra copy step and
+ * needs no runtime file I/O.
+ *
+ * The four tables back the durability requirements:
+ *   grants        -> grantId survives restarts
+ *   messages      -> de-duplicated ingestion of incoming mail
+ *   schedules     -> per-grant cadence, configurable without code changes
+ *   sent_windows  -> exactly-once digest per (grant, window)
+ */
+export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS grants (
   grant_id          TEXT PRIMARY KEY,
   email             TEXT NOT NULL,
@@ -22,7 +27,6 @@ CREATE TABLE IF NOT EXISTS messages (
   snippet     TEXT NOT NULL,
   received_at INTEGER NOT NULL,
   unread      INTEGER NOT NULL,          -- 0/1
-  -- true once included in a sent digest; lets the next window cover only new mail
   summarized  INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY (grant_id) REFERENCES grants(grant_id)
 );
@@ -39,7 +43,8 @@ CREATE TABLE IF NOT EXISTS schedules (
 -- Idempotency ledger: one row == one digest actually sent for a window.
 CREATE TABLE IF NOT EXISTS sent_windows (
   grant_id   TEXT NOT NULL,
-  window_key TEXT NOT NULL,              -- deterministic id of the time window
+  window_key TEXT NOT NULL,
   sent_at    INTEGER NOT NULL,
   PRIMARY KEY (grant_id, window_key)
 );
+`;

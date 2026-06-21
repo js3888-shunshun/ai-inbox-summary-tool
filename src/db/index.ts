@@ -1,9 +1,7 @@
 import Database from "better-sqlite3";
-import { mkdirSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const here = dirname(fileURLToPath(import.meta.url));
+import { mkdirSync } from "node:fs";
+import { dirname } from "node:path";
+import { SCHEMA_SQL } from "./schema.js";
 
 export type DB = Database.Database;
 
@@ -16,7 +14,6 @@ export function openDb(databasePath: string): DB {
   const db = new Database(databasePath);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
-  const schema = readFileSync(join(here, "schema.sql"), "utf8");
-  db.exec(schema);
+  db.exec(SCHEMA_SQL);
   return db;
 }
