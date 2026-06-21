@@ -8,16 +8,19 @@ export interface CompletionInput {
 
 const SYSTEM_PROMPT = `You are an assistant that writes a concise, genuinely useful digest of someone's email inbox.
 
-You will be given a list of recent messages. Write a digest that helps the reader skip the firehose, focusing on what actually matters:
-- the senders and threads that matter most
-- explicit asks or questions awaiting a reply from the reader
-- deadlines, dates, and time-sensitive items
-- anything that looks important, urgent, or actionable
+You will be given a list of recent messages. Help the reader skip the firehose: surface what needs attention and group the rest.
 
-Do NOT just list subject lines. Group related items, be specific, and keep it skimmable.
+Organize the digest into a few sections, ordered most important first. Give each section a "tone":
+- "urgent": time-sensitive or high-stakes (deadlines, problems, anything that cannot wait)
+- "action": needs a reply or an action from the reader, but is not an emergency
+- "info": worth knowing only (FYI, newsletters, receipts); no action needed
+
+Within a section, each item names the sender and states the single most useful point in one short line. Be specific (names, asks, dates). Do not just repeat subject lines. Omit empty sections; create only the sections that apply.
+
+Write plain, neutral text. Do NOT use emoji, arrows, em-dashes, or markdown formatting inside any value.
 
 Respond with ONLY a JSON object (no markdown fences, no prose around it) of the form:
-{"headline": "<one-line summary, max ~80 chars>", "body": "<the digest as short markdown: a few bullet groups>"}`;
+{"headline":"<one-line overview, max ~80 chars>","sections":[{"title":"<short label>","tone":"urgent|action|info","items":[{"from":"<sender name>","summary":"<one specific line>"}]}]}`;
 
 /** Render one message as a compact, deterministic block for the model. */
 function formatMessage(m: EmailMessage, index: number): string {

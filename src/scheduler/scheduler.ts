@@ -4,6 +4,7 @@ import type { MailProvider } from "../mail/provider.js";
 import type { Digest, Summarizer } from "../ai/summarizer.js";
 import type { EmailMessage, Grant, Schedule } from "../domain/types.js";
 import { digestSubject, excludeOwnDigests } from "../domain/digest.js";
+import { renderDigestHtml } from "../email/render.js";
 import { getGrant } from "../store/grants.js";
 import { listUnsummarized, markSummarized } from "../store/messages.js";
 import { listEnabledSchedules } from "../store/schedules.js";
@@ -19,22 +20,13 @@ export interface SchedulerDeps {
 
 export type DigestOutcome = "sent" | "empty" | "skipped" | "error";
 
-function renderEmailBody(headline: string, body: string): string {
-  return (
-    `<div style="font-family:system-ui,sans-serif;max-width:640px">` +
-    `<h2>📥 Inbox digest</h2><p><strong>${escapeHtml(headline)}</strong></p>` +
-    `<pre style="white-space:pre-wrap;font:inherit">${escapeHtml(body)}</pre>` +
-    `<hr><p style="color:#888;font-size:12px">Sent by AI Inbox Summary.</p></div>`
-  );
-}
-
 /** Summarize the given messages and email the digest to the grant's destination. */
 async function composeAndSend(deps: SchedulerDeps, grant: Grant, messages: EmailMessage[]): Promise<Digest> {
   const digest = await deps.summarizer.summarize(messages);
   await deps.mail.sendEmail(grant.grantId, {
     to: grant.destinationEmail,
     subject: digestSubject(digest.headline),
-    body: renderEmailBody(digest.headline, digest.body),
+    body: renderDigestHtml(digest),
   });
   return digest;
 }
@@ -115,10 +107,4 @@ export function startScheduler(deps: SchedulerDeps, intervalMs = 60_000): () => 
   timer.unref?.();
   deps.log.info({ intervalMs }, "scheduler started");
   return () => clearInterval(timer);
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c,
-  );
 }

@@ -4,6 +4,7 @@ import type { MailProvider } from "../mail/provider.js";
 import type { Summarizer } from "../ai/summarizer.js";
 import { listGrants } from "../store/grants.js";
 import { excludeOwnDigests } from "../domain/digest.js";
+import { renderDigestHtml } from "../email/render.js";
 
 interface DigestDeps {
   db: DB;
@@ -37,17 +38,6 @@ export function registerDigestRoutes(app: FastifyInstance, deps: DigestDeps): vo
 
     return reply
       .type("text/html")
-      .send(
-        `<!doctype html><meta charset="utf-8">` +
-          `<h1>${escapeHtml(digest.headline)}</h1>` +
-          `<p><em>Covering ${digest.messageCount} message(s).</em></p>` +
-          `<pre style="white-space:pre-wrap;font-family:system-ui">${escapeHtml(digest.body)}</pre>`,
-      );
+      .send(`<!doctype html><meta charset="utf-8"><body style="background:#f5f6f8;margin:0;padding:24px 0">${renderDigestHtml(digest)}</body>`);
   });
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c,
-  );
 }

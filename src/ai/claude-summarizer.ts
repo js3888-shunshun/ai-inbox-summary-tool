@@ -17,7 +17,7 @@ export class ClaudeSummarizer implements Summarizer {
     if (messages.length === 0) {
       return {
         headline: "No new mail since your last digest",
-        body: "Your inbox has been quiet — nothing new to summarize.",
+        sections: [],
         messageCount: 0,
       };
     }

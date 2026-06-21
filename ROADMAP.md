@@ -125,6 +125,15 @@ product. Each item is discussed with the user before building.
       exercised without hand-sending from another account. _(Caveat: a single grant
       can only send as its own address; varied senders need a second mailbox or
       direct DB seeding. Feasibility discussed before building.)_
+- [ ] **6.5 Multi-tenant (the real product gap)** — today `/` is a single shared,
+      unauthenticated dashboard: anyone who reaches the URL sees and can edit *all*
+      connected mailboxes. To be a broadly deployable product it needs (a) real
+      user accounts / login on *our* app, (b) per-user data isolation so each
+      person sees only their own grants, and (c) the Nylas app + Google OAuth moved
+      from sandbox to **production / verified** (so arbitrary users can consent
+      without allowlisting or "unverified app" warnings). Connecting always remains
+      gated by the mailbox owner's OAuth consent — that part is already correct.
+      _(Scoped out of the take-home; documented as the main "more time" item.)_
 
 ---
 

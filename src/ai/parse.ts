@@ -1,10 +1,20 @@
 import { z } from "zod";
-import type { Digest } from "./summarizer.js";
+import type { Digest, DigestTone } from "./summarizer.js";
 
 /** Boundary #3 of the AI seam: deterministically parse + validate model output. */
 const ModelOutputSchema = z.object({
   headline: z.string().min(1),
-  body: z.string().min(1),
+  sections: z
+    .array(
+      z.object({
+        title: z.string().min(1),
+        tone: z.enum(["urgent", "action", "info"]).optional(),
+        items: z
+          .array(z.object({ from: z.string().optional(), summary: z.string().min(1) }))
+          .min(1),
+      }),
+    )
+    .min(1),
 });
 
 /**
@@ -30,5 +40,13 @@ export function parseDigest(raw: string, messageCount: number): Digest {
     throw new Error(`Failed to parse model output as JSON: ${(e as Error).message}`);
   }
   const parsed = ModelOutputSchema.parse(json);
-  return { headline: parsed.headline, body: parsed.body, messageCount };
+  return {
+    headline: parsed.headline,
+    messageCount,
+    sections: parsed.sections.map((s) => ({
+      title: s.title,
+      tone: (s.tone ?? "info") as DigestTone,
+      items: s.items.map((it) => ({ from: it.from?.trim() ?? "", summary: it.summary })),
+    })),
+  };
 }
