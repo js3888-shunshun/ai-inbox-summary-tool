@@ -25,7 +25,7 @@ async function composeAndSend(deps: SchedulerDeps, grant: Grant, messages: Email
   const digest = await deps.summarizer.summarize(messages);
   await deps.mail.sendEmail(grant.grantId, {
     to: grant.destinationEmail,
-    subject: digestSubject(digest.headline),
+    subject: digestSubject(digest.headline, digest.messageCount),
     body: renderDigestHtml(digest),
   });
   return digest;

@@ -11,8 +11,12 @@ export const DIGEST_SUBJECT_PREFIX = "Inbox digest";
 /** Older prefix still recognized so previously-sent digests are filtered too. */
 const LEGACY_SUBJECT_PREFIXES = ["📥 Inbox digest"];
 
-export function digestSubject(headline: string): string {
-  return `${DIGEST_SUBJECT_PREFIX}: ${headline}`;
+export function digestSubject(headline: string, messageCount?: number): string {
+  const count =
+    typeof messageCount === "number"
+      ? ` (${messageCount} message${messageCount === 1 ? "" : "s"})`
+      : "";
+  return `${DIGEST_SUBJECT_PREFIX}${count}: ${headline}`;
 }
 
 export function isOwnDigest(subject: string): boolean {
