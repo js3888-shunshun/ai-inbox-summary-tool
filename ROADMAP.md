@@ -32,27 +32,28 @@ before moving on. Mirrors the task list (M0–M5).
 
 ---
 
-## M0 — Project bootstrap
+## M0 — Project bootstrap ✅ DONE
 
 **Goal:** a runnable, typed skeleton with config + storage in place.
 
-- [ ] Fastify app boots; `GET /health` → `200 {"ok":true}`.
-- [ ] `loadConfig()` validates env with zod; missing/invalid env fails fast with a clear message.
-- [ ] SQLite schema created on boot: `grants`, `messages`, `schedules`, `sent_windows`.
-- [ ] `tsconfig` strict; `npm run typecheck` clean; no `any`.
-- [ ] `git init`, `.gitignore` excludes `.env` + `*.db`; first commit.
+- [x] Fastify app boots; `GET /health` → `200 {"ok":true}`. _(verified on VM, public)_
+- [x] `loadConfig()` validates env with zod; missing/invalid env fails fast with a clear message.
+- [x] SQLite schema created on boot: `grants`, `messages`, `schedules`, `sent_windows`.
+- [x] `tsconfig` strict; `npm run typecheck` clean; no `any`.
+- [x] `git init`, `.gitignore` excludes `.env` + `*.db`; first commit.
 
-## M1 — Nylas hosted OAuth
+## M1 — Nylas hosted OAuth ✅ DONE
 
 **Goal:** connect a real mailbox and persist the grant.
 
-- [ ] `GET /auth` redirects to Nylas hosted auth (`/v3/connect/auth`).
-- [ ] `GET /oauth/callback` exchanges `code` → grant; persists `grantId` + email.
-- [ ] Grant survives a process restart (read back from SQLite).
-- [ ] Unhappy paths handled: denied consent, expired/invalid grant → friendly error, no crash.
-- [ ] All Nylas calls sit behind a `MailProvider` interface (vendor type does not leak).
+- [x] `GET /auth` redirects to Nylas hosted auth (`/v3/connect/auth`).
+- [x] `GET /oauth/callback` exchanges `code` → grant; persists `grantId` + email.
+- [x] Grant survives a process restart (read back from SQLite). _(grant for jiayisun3888@gmail.com persisted)_
+- [x] Unhappy paths handled: denied consent, expired/invalid grant → friendly error, no crash.
+- [x] All Nylas calls sit behind a `MailProvider` interface (vendor type does not leak).
+- [x] _(infra)_ HTTPS on the VM: Caddy + Let's Encrypt cert for `135-148-170-25.sslip.io` → reverse-proxy to `:3000` (Nylas rejects non-localhost http callbacks).
 
-## M2 — Read inbox + AI summary seam
+## M2 — Read inbox + AI summary seam 🔨 IN PROGRESS
 
 **Goal:** a clean, testable summarization seam producing a *useful* digest.
 
