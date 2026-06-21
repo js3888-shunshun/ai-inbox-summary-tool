@@ -105,7 +105,7 @@ callback/webhook URLs hang off it.
 
 ## End-to-end flow
 
-1. **Connect** — open `/`, click *Connect a mailbox* → Nylas hosted OAuth → `/oauth/callback` exchanges the code and persists the `grantId`. **Connect as many mailboxes as you like**; each is an independent grant with its own settings (the auth flow forces the account chooser so additional accounts can be added).
+1. **Connect** — open `/`, click *Connect a mailbox*. Hosted auth opens in a **new tab**; after you sign in and grant consent at your provider, the tab closes itself and the dashboard refreshes with the new mailbox listed. Any provider enabled for your Nylas app works (Google, Microsoft/Outlook, IMAP, …); connecting always requires the mailbox owner's OAuth consent, so you can't connect a mailbox without the owner signing in. **Connect as many mailboxes as you like** — each is an independent grant with its own cadence, destination, and on/off switch.
 2. **Configure** — on `/`, per mailbox set a **cadence** (`hourly`, `every:5m`, `every:2h`, `daily:09:00`), a **timezone**, and the **destination** address (may differ from the mailbox). Each mailbox can be **paused/resumed** or **disconnected** (which revokes the grant on Nylas and drops its local data).
 3. **Ingest** — when mail arrives, Nylas calls `/webhooks/nylas`; the handler verifies the HMAC, returns `200` immediately, then refetches the full message and stores it (deduped).
 4. **Summarize & send** — each scheduler tick, a due window claims its idempotency key, summarizes the mail collected since the last digest, and emails it via Nylas to the destination.

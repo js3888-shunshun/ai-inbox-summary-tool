@@ -98,26 +98,28 @@ before moving on. Mirrors the task list (M0–M5).
 - [ ] Short demo video: connect mailbox → incoming email picked up via webhook → summary arrives at destination. _(to record)_
 - [x] Clean, incremental git history (commit per milestone + fixes).
 
-## M6 — Product polish 🗣️ IN DISCUSSION
+## M6 — Product polish 🔨 IN PROGRESS
 
 **Goal:** take the working prototype to something that *looks and feels* like a
-product. Each item is discussed with the user before building. Tasks are proposed,
-not yet accepted.
+product. Each item is discussed with the user before building.
 
-- [ ] **6.1 Connect flow** — open hosted-auth in a **new tab** (`target="_blank"`);
-      callback page auto-refreshes the opener and closes itself, so you land back
-      on `/` with the new mailbox already listed. _(Also: document that any
-      Nylas-supported provider works, gated by OAuth consent — not Google-only,
-      and you can't connect a mailbox the owner doesn't consent to. Optionally
-      enable Microsoft/IMAP providers in the Nylas dashboard.)_
+- [ ] **6.1 Connect flow** 🔨 — open hosted-auth in a **new tab** (script
+      `window.open`, so the callback can talk back to the opener); on success the
+      callback page **refreshes the opener and closes itself**, so you land back on
+      `/` with the new mailbox already listed (graceful fallback message if the
+      browser blocks auto-close). Document the provider scope: any Nylas-enabled
+      provider works (Google / Microsoft / IMAP / …), gated by the owner's OAuth
+      consent — not Google-only, and a mailbox can't be connected without consent.
 - [ ] **6.2 Digest email redesign** — cleaner, scannable HTML: structured sections
       (urgent / needs reply / FYI / skippable) with visual hierarchy and color, so
       the point lands at a glance. Touches the AI seam (structured model output +
-      zod) and the email template. _(Awaiting a reference template from the user.)_
-- [ ] **6.3 Web UI redesign** — replace the text-box/fieldset look with a real
-      design: cards, proper buttons, **cadence dropdown** (presets + daily time
-      picker) and **timezone dropdown** (IANA list), instead of free-text fields.
-      Same `POST /schedule` API underneath. _(Highest-impact, unblocked.)_
+      zod) and the email template; also revisit the `📥 Inbox digest` subject prefix
+      (it doubles as the self-loop filter, so any change updates that logic too).
+      _(I'll draft a first version for review.)_
+- [x] **6.3 Web UI redesign** ✅ — card layout, proper buttons, **cadence as a
+      number + unit dropdown** (`Every N minutes/hours`) plus a `Daily at` time
+      picker, and a full IANA **timezone dropdown**. Same `POST /schedule` API
+      underneath. Plain copy: no arrows / em-dashes / emoji / check glyphs.
 - [ ] **6.4 Test-mail generator** _(optional, low priority)_ — a dev script to send
       a batch of synthetic emails so the webhook→ingest→digest pipeline can be
       exercised without hand-sending from another account. _(Caveat: a single grant

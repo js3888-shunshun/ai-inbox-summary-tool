@@ -208,7 +208,7 @@ function renderHome(db: DB): string {
 <div class="empty">
   <h2>No mailbox connected yet</h2>
   <p>Connect a mailbox to start receiving inbox summaries on a schedule you choose.</p>
-  <a class="btn primary lg" href="/auth">Connect a mailbox</a>
+  <a class="btn primary lg" href="/auth" onclick="return openConnect(event)">Connect a mailbox</a>
 </div>`;
 
   return `<!doctype html><html lang="en"><head>
@@ -225,7 +225,7 @@ function renderHome(db: DB): string {
     </div>
     <div class="hero-actions">
       <a class="btn ghost" href="/debug/digest">Preview</a>
-      <a class="btn primary" href="/auth">Connect a mailbox</a>
+      <a class="btn primary" href="/auth" onclick="return openConnect(event)">Connect a mailbox</a>
     </div>
   </header>
 
@@ -241,6 +241,13 @@ function renderHome(db: DB): string {
 async function post(url, body) {
   const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   return { ok: r.ok, data: await r.json().catch(() => ({})) };
+}
+// Open hosted auth in a new tab via script, so the callback can reload this page
+// and close itself once the mailbox is connected. href is the no-JS fallback.
+function openConnect(e) {
+  if (e) e.preventDefault();
+  window.open("/auth", "nylas_connect");
+  return false;
 }
 function onCadence(sel) {
   const card = sel.closest(".card");
