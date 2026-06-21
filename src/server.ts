@@ -1,6 +1,8 @@
 import Fastify from "fastify";
 import { loadConfig } from "./config.js";
 import { openDb } from "./db/index.js";
+import { NylasMailProvider } from "./mail/nylas-provider.js";
+import { registerAuthRoutes } from "./routes/auth.js";
 
 /**
  * Composition root: load+validate config, open the DB, wire routes, listen.
@@ -19,11 +21,18 @@ async function main(): Promise<void> {
     },
   });
 
+  const mail = new NylasMailProvider(config.nylas);
+
   app.get("/health", async () => ({ ok: true }));
 
-  // TODO(M1): app.register(authRoutes, { config, db })
-  // TODO(M3): app.register(webhookRoutes, { config, db })
-  // TODO(M4): start scheduler(config, db)
+  registerAuthRoutes(app, {
+    db,
+    mail,
+    redirectUri: `${config.publicBaseUrl}/oauth/callback`,
+  });
+
+  // TODO(M3): app.register(webhookRoutes, { config, db, mail })
+  // TODO(M4): start scheduler(config, db, mail, summarizer)
 
   const close = async (): Promise<void> => {
     await app.close();
