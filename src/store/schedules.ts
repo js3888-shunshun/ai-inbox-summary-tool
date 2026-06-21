@@ -44,3 +44,11 @@ export function listEnabledSchedules(db: DB): Schedule[] {
   const rows = db.prepare(`SELECT * FROM schedules WHERE enabled = 1`).all() as ScheduleRow[];
   return rows.map(toSchedule);
 }
+
+/** Pause or resume digests for a grant without losing its cadence. */
+export function setScheduleEnabled(db: DB, grantId: string, enabled: boolean): boolean {
+  const info = db
+    .prepare(`UPDATE schedules SET enabled = ? WHERE grant_id = ?`)
+    .run(enabled ? 1 : 0, grantId);
+  return info.changes > 0;
+}

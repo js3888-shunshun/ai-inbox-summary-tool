@@ -49,3 +49,14 @@ export function setDestinationEmail(db: DB, grantId: string, destinationEmail: s
     grantId,
   );
 }
+
+/** Remove a grant and all of its local data (messages/schedule/windows). */
+export function deleteGrantCascade(db: DB, grantId: string): void {
+  const tx = db.transaction((id: string) => {
+    db.prepare(`DELETE FROM messages WHERE grant_id = ?`).run(id);
+    db.prepare(`DELETE FROM schedules WHERE grant_id = ?`).run(id);
+    db.prepare(`DELETE FROM sent_windows WHERE grant_id = ?`).run(id);
+    db.prepare(`DELETE FROM grants WHERE grant_id = ?`).run(id);
+  });
+  tx(grantId);
+}

@@ -29,4 +29,7 @@ export interface MailProvider {
     grantId: string,
     msg: { to: string; subject: string; body: string },
   ): Promise<void>;
+
+  /** Revoke a grant on the provider (used when disconnecting a mailbox). */
+  revokeGrant(grantId: string): Promise<void>;
 }

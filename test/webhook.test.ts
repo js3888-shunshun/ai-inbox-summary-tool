@@ -27,6 +27,7 @@ function fakeMail(): MailProvider {
       unread: true,
     }),
     sendEmail: async () => {},
+    revokeGrant: async () => {},
   };
 }
 

@@ -39,6 +39,8 @@ export class NylasMailProvider implements MailProvider {
     return this.nylas.auth.urlForOAuth2({
       clientId: this.clientId,
       redirectUri,
+      // Force the account chooser so additional mailboxes can be connected.
+      prompt: "select_account",
       ...(state !== undefined ? { state } : {}),
     });
   }
@@ -94,5 +96,9 @@ export class NylasMailProvider implements MailProvider {
         body: msg.body,
       },
     });
+  }
+
+  async revokeGrant(grantId: string): Promise<void> {
+    await this.nylas.grants.destroy({ grantId });
   }
 }
