@@ -129,15 +129,28 @@ product. Each item is discussed with the user before building.
       pipeline can be exercised without hand-sending from another account. Caveat as
       discussed: a single grant can only send as its own address, so the From is
       always the connected mailbox; the variety is in subject/body/tone.
-- [ ] **6.5 Multi-tenant (the real product gap)** — today `/` is a single shared,
-      unauthenticated dashboard: anyone who reaches the URL sees and can edit *all*
-      connected mailboxes. To be a broadly deployable product it needs (a) real
-      user accounts / login on *our* app, (b) per-user data isolation so each
-      person sees only their own grants, and (c) the Nylas app + Google OAuth moved
-      from sandbox to **production / verified** (so arbitrary users can consent
-      without allowlisting or "unverified app" warnings). Connecting always remains
-      gated by the mailbox owner's OAuth consent — that part is already correct.
-      _(Scoped out of the take-home; documented as the main "more time" item.)_
+- [x] **6.5 Multi-tenant — username/password accounts + per-user isolation** ✅ —
+      `/` was a single shared, unauthenticated dashboard (anyone reaching the URL saw
+      and could edit *all* connected mailboxes). Now:
+  - **Accounts**: `users` table; passwords hashed with scrypt (`node:crypto`, no new
+    dep) as `salt:key`, never stored in plaintext; usernames unique + lowercased.
+    Self-serve `/register`, `/login`, `/logout` (plain HTML forms, work without JS).
+  - **Sessions**: HMAC-signed, HttpOnly, SameSite=Lax (survives the Nylas redirect),
+    Secure over HTTPS, carrying the authenticated user id. Signing key is generated
+    once and persisted in a `meta` table — no new env var.
+  - **Isolation**: `grants.owner_id` references a user; every page and mutation
+    requires login (dashboard + `/debug/digest` redirect to `/login` when signed
+    out, API routes reject grants the user doesn't own via `getOwnedGrant`).
+    `listGrantsByOwner` scopes the dashboard. One user cannot see or act on
+    another's mailbox even by guessing a grantId.
+  - **Connect → bind**: connecting a mailbox binds the grant to the logged-in
+    account; reconnecting rebinds it to the connecting account (passing that
+    account's OAuth is itself proof of control), which also adopts legacy
+    pre-accounts grants (`owner_id` was NULL).
+  - _Still future for true public launch_: the Nylas app + Google OAuth moved from
+    sandbox to **production / verified** so arbitrary users can consent without
+    allowlisting / "unverified app" warnings; plus the usual account hardening
+    (email verification, password reset, rate limiting). See cut lines.
 - [x] **6.6 Send-now & digest-quality refinements** ✅ — a cluster of fixes from
       real-inbox testing:
   - **Selectable count** on each card (`last 10/20/30/50`) wired to `POST /send-now`
@@ -232,8 +245,10 @@ source of truth — see "deleted mail" below.)
 
 ## Deliberate cut lines (state in README under "what I'd do with more time")
 
-- **Multi-tenant**: real user accounts + per-user data isolation, and the Nylas/Google
-  app moved to production/verified (see M6.5). The current dashboard is single-tenant.
+- **Public launch of multi-tenant**: accounts + per-user isolation are done (M6.5);
+  what remains for arbitrary public users is the Nylas/Google app moved to
+  production/verified, plus account hardening (email verification, password reset,
+  login rate limiting).
 - Job queue (BullMQ/Redis) — SQLite poller is enough to prove the three scheduling invariants.
 - Deep pagination past the Nylas 100-message page (to reach older Primary mail).
 - Retry/backoff on send failures (outbox); observability/metrics; webhook replay dedup.

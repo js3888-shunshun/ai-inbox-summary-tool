@@ -122,7 +122,8 @@ groups on.
 
 ## End-to-end flow
 
-1. **Connect** — open `/`, click *Connect a mailbox*. Hosted auth opens in a **new tab**; after you sign in and grant consent at your provider, the tab closes itself and the dashboard refreshes with the new mailbox listed. Any provider enabled for your Nylas app works (Google, Microsoft/Outlook, IMAP, …); connecting always requires the mailbox owner's OAuth consent, so you can't connect a mailbox without the owner signing in. **Connect as many mailboxes as you like** — each is an independent grant with its own cadence, destination, and on/off switch.
+0. **Sign in** — open `/`; if you're not logged in you're sent to `/login`. Create an account (`/register`, username + password) or sign in. Each account is isolated: you only ever see and control the mailboxes *you* connected, and the dashboard greets you with a *Sign out* control. Passwords are stored only as salted scrypt hashes.
+1. **Connect** — from the dashboard, click *Connect a mailbox*. Hosted auth opens in a **new tab**; after you sign in and grant consent at your provider, the tab closes itself and the dashboard refreshes with the new mailbox listed. Any provider enabled for your Nylas app works (Google, Microsoft/Outlook, IMAP, …); connecting always requires the mailbox owner's OAuth consent, so you can't connect a mailbox without the owner signing in. **Connect as many mailboxes as you like** — each is an independent grant with its own cadence, destination, and on/off switch.
 2. **Configure** — on `/`, per mailbox set a **cadence** (`hourly`, `every:5m`, `every:2h`, `daily:09:00`), a **timezone**, and the **destination** address (may differ from the mailbox). Each mailbox can be **paused/resumed** or **disconnected** (which revokes the grant on Nylas and drops its local data).
 3. **Ingest** — when mail arrives, Nylas calls `/webhooks/nylas`; the handler verifies the HMAC, returns `200` immediately, then refetches the full message and stores it (deduped).
 4. **Summarize & send** — each scheduler tick, a due window claims its idempotency key, summarizes the mail collected since the last digest, and emails it via Nylas to the destination.
@@ -186,7 +187,7 @@ CJS-native — avoiding ESM dual-package friction for zero benefit on a Node ser
 - **Delivery guarantees:** an outbox table + retry/backoff with a provider-side
   idempotency key, so a failed send is retried without any chance of a duplicate.
 - **Richer digests:** HTML email templating; per-sender importance learned over time; thread-aware grouping.
-- **Multi-user:** multiple mailboxes are already supported per-grant (connect/pause/disconnect from the UI); what's missing is real user accounts/auth so different people see only their own mailboxes.
+- **Multi-user:** done — username/password accounts with per-user data isolation (each person sees only their own mailboxes). What remains for a public launch is moving the Nylas/Google app to production/verified and account hardening (email verification, password reset, login rate limiting).
 - **Ops:** structured metrics, webhook replay protection via event-id dedup, and a dead-letter log for failed ingests.
 - **Tests:** type-check the test files in CI; add an integration test against a Nylas sandbox.
 
