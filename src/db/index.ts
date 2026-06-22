@@ -24,6 +24,9 @@ export function openDb(databasePath: string): DB {
 function migrate(db: DB): void {
   ensureColumn(db, "grants", "primary_only", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "grants", "owner_id", "TEXT"); // multi-tenant: NULL on legacy rows until claimed
+  // Index created here (not in SCHEMA_SQL) so it never references owner_id before
+  // the column exists on a database created by an earlier version.
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_grants_owner ON grants(owner_id)`);
 }
 
 function ensureColumn(db: DB, table: string, column: string, ddl: string): void {

@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS grants (
   primary_only      INTEGER NOT NULL DEFAULT 0,   -- 1 = summarize only the Primary tab
   owner_id          TEXT                          -- which signed-in owner connected this mailbox (NULL = legacy/unclaimed)
 );
-CREATE INDEX IF NOT EXISTS idx_grants_owner ON grants(owner_id);
+-- NOTE: the owner_id index is created in migrate() (after the column is ensured on
+-- pre-existing databases), not here, so this schema is safe to run before migration.
 
 -- Small key/value store for server-managed secrets (e.g. the cookie-signing key),
 -- so they persist across restarts without adding new environment variables.
