@@ -30,29 +30,34 @@ function toEmailMessage(row: MessageRow): EmailMessage {
 /**
  * Idempotent insert keyed on the message id (PK). Safe against duplicate and
  * out-of-order webhook deliveries — re-delivering the same message is a no-op
- * apart from refreshing its read state. Returns true if a new row was inserted.
+ * apart from refreshing its read state. Returns true only if a *new* row was
+ * inserted (false on a duplicate delivery).
+ *
+ * The fresh-vs-duplicate check is an explicit pre-existence lookup: with
+ * `ON CONFLICT DO UPDATE` the conflict path still reports `changes = 1` and keeps
+ * the prior `lastInsertRowid`, so the statement result alone cannot tell an insert
+ * from an update.
  */
 export function upsertMessage(db: DB, m: EmailMessage): boolean {
-  const info = db
-    .prepare(
-      `INSERT INTO messages
-         (id, grant_id, thread_id, from_name, from_email, subject, snippet, received_at, unread, summarized)
-       VALUES
-         (@id, @grantId, @threadId, @from, @fromEmail, @subject, @snippet, @receivedAt, @unread, 0)
-       ON CONFLICT(id) DO UPDATE SET unread = excluded.unread`,
-    )
-    .run({
-      id: m.id,
-      grantId: m.grantId,
-      threadId: m.threadId,
-      from: m.from,
-      fromEmail: m.fromEmail,
-      subject: m.subject,
-      snippet: m.snippet,
-      receivedAt: m.receivedAt,
-      unread: m.unread ? 1 : 0,
-    });
-  return info.changes > 0 && info.lastInsertRowid !== 0;
+  const existed = db.prepare(`SELECT 1 FROM messages WHERE id = ?`).get(m.id) !== undefined;
+  db.prepare(
+    `INSERT INTO messages
+       (id, grant_id, thread_id, from_name, from_email, subject, snippet, received_at, unread, summarized)
+     VALUES
+       (@id, @grantId, @threadId, @from, @fromEmail, @subject, @snippet, @receivedAt, @unread, 0)
+     ON CONFLICT(id) DO UPDATE SET unread = excluded.unread`,
+  ).run({
+    id: m.id,
+    grantId: m.grantId,
+    threadId: m.threadId,
+    from: m.from,
+    fromEmail: m.fromEmail,
+    subject: m.subject,
+    snippet: m.snippet,
+    receivedAt: m.receivedAt,
+    unread: m.unread ? 1 : 0,
+  });
+  return !existed;
 }
 
 /** Messages collected since the last digest for a grant (not yet summarized). */

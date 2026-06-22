@@ -4,6 +4,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { openDb, type DB } from "../src/db/index.js";
 import { webhookPlugin } from "../src/routes/webhook.js";
 import { saveGrant } from "../src/store/grants.js";
+import { upsertMessage } from "../src/store/messages.js";
 import type { MailProvider } from "../src/mail/provider.js";
 import type { EmailMessage } from "../src/domain/types.js";
 
@@ -95,6 +96,16 @@ describe("webhook", () => {
     await app.inject({ method: "POST", url: "/webhooks/nylas", headers, payload: body });
     await app.inject({ method: "POST", url: "/webhooks/nylas", headers, payload: body });
     await flush();
+    expect(countMessages()).toBe(1);
+  });
+
+  it("reports a fresh insert vs a duplicate via upsertMessage's return", () => {
+    const m: EmailMessage = {
+      id: "x1", grantId: "g1", threadId: null, from: "A", fromEmail: "a@x.com",
+      subject: "s", snippet: "", receivedAt: 1, unread: true,
+    };
+    expect(upsertMessage(db, m)).toBe(true); // first delivery -> inserted
+    expect(upsertMessage(db, m)).toBe(false); // duplicate delivery -> not inserted
     expect(countMessages()).toBe(1);
   });
 });
