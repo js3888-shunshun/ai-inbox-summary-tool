@@ -14,7 +14,8 @@ CREATE TABLE IF NOT EXISTS grants (
   grant_id          TEXT PRIMARY KEY,
   email             TEXT NOT NULL,
   destination_email TEXT NOT NULL,
-  created_at        INTEGER NOT NULL
+  created_at        INTEGER NOT NULL,
+  primary_only      INTEGER NOT NULL DEFAULT 0   -- 1 = summarize only the Primary tab
 );
 
 CREATE TABLE IF NOT EXISTS messages (

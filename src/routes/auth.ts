@@ -55,6 +55,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
         email,
         destinationEmail: existing?.destinationEmail ?? email,
         createdAt: existing?.createdAt ?? Date.now(),
+        primaryOnly: existing?.primaryOnly ?? false,
       });
       app.log.info({ grantId }, "mailbox connected"); // never log tokens/bodies
       return reply.type("text/html").send(connectedPage(email));

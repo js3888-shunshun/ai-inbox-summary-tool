@@ -3,7 +3,7 @@ import type { DB } from "../db/index.js";
 import type { MailProvider } from "../mail/provider.js";
 import type { Digest, Summarizer } from "../ai/summarizer.js";
 import type { EmailMessage, Grant, Schedule } from "../domain/types.js";
-import { digestSubject, excludeOwnDigests, excludeNoisyCategories, isNoisyCategory } from "../domain/digest.js";
+import { digestSubject, excludeOwnDigests, filterByCategoryPolicy, isAllowedCategory } from "../domain/digest.js";
 import { renderDigestHtml } from "../email/render.js";
 import { getGrant } from "../store/grants.js";
 import { listUnsummarized, markSummarized } from "../store/messages.js";
@@ -63,7 +63,7 @@ export async function runScheduledDigest(
     const liveById = new Map(live.map((m) => [m.id, m]));
     const inInbox = accumulated.filter((m) => {
       const lm = liveById.get(m.id);
-      return lm !== undefined && !isNoisyCategory(lm);
+      return lm !== undefined && isAllowedCategory(lm, grant.primaryOnly);
     });
     const consumedIds = accumulated.map((m) => m.id); // advance the watermark for all
 
@@ -104,8 +104,9 @@ export async function sendDigestNow(deps: SchedulerDeps, grant: Grant, limit = 3
   // "last N" means up to N real (non-digest) inbox emails. Capped at the Nylas
   // single-page max of 100.
   const fetchN = Math.min(limit * 2 + 20, 100);
-  const recent = excludeNoisyCategories(
+  const recent = filterByCategoryPolicy(
     excludeOwnDigests(await deps.mail.listMessages(grant.grantId, { limit: fetchN })),
+    grant.primaryOnly,
   );
   const messages = recent.slice(0, limit);
   const digest = await composeAndSend(deps, grant, messages);

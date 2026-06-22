@@ -11,6 +11,8 @@ export interface Grant {
   /** Where digests are sent (may differ from the connected mailbox). */
   destinationEmail: string;
   createdAt: number;
+  /** When true, only the Gmail Primary tab is summarized (skip Updates/Promotions/Social/Forums). */
+  primaryOnly: boolean;
 }
 
 /** The minimal slice of a message we need to summarize it. */

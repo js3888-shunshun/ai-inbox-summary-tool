@@ -38,10 +38,34 @@ export function excludeOwnDigests(messages: EmailMessage[]): EmailMessage[] {
  */
 const NOISY_CATEGORIES = ["CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL"];
 
+/** Anything outside the Gmail Primary tab. */
+const NON_PRIMARY_CATEGORIES = [
+  "CATEGORY_PROMOTIONS",
+  "CATEGORY_SOCIAL",
+  "CATEGORY_UPDATES",
+  "CATEGORY_FORUMS",
+];
+
 export function isNoisyCategory(m: EmailMessage): boolean {
   return m.folders?.some((f) => NOISY_CATEGORIES.includes(f)) ?? false;
 }
 
+export function isNonPrimary(m: EmailMessage): boolean {
+  return m.folders?.some((f) => NON_PRIMARY_CATEGORIES.includes(f)) ?? false;
+}
+
 export function excludeNoisyCategories(messages: EmailMessage[]): EmailMessage[] {
   return messages.filter((m) => !isNoisyCategory(m));
+}
+
+/**
+ * Whether a message passes the mailbox's category policy: in primary-only mode
+ * just the Primary tab; otherwise everything except Promotions/Social.
+ */
+export function isAllowedCategory(m: EmailMessage, primaryOnly: boolean): boolean {
+  return primaryOnly ? !isNonPrimary(m) : !isNoisyCategory(m);
+}
+
+export function filterByCategoryPolicy(messages: EmailMessage[], primaryOnly: boolean): EmailMessage[] {
+  return messages.filter((m) => isAllowedCategory(m, primaryOnly));
 }

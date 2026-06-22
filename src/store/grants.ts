@@ -7,6 +7,7 @@ interface GrantRow {
   email: string;
   destination_email: string;
   created_at: number;
+  primary_only: number;
 }
 
 function toGrant(row: GrantRow): Grant {
@@ -15,19 +16,31 @@ function toGrant(row: GrantRow): Grant {
     email: row.email,
     destinationEmail: row.destination_email,
     createdAt: row.created_at,
+    primaryOnly: row.primary_only === 1,
   };
 }
 
 /**
  * Persist a grant (idempotent on grantId). Reconnecting the same mailbox
- * refreshes the email but preserves any chosen destination address.
+ * refreshes the email but preserves the chosen destination and primary-only flag.
  */
 export function saveGrant(db: DB, grant: Grant): void {
   db.prepare(
-    `INSERT INTO grants (grant_id, email, destination_email, created_at)
-     VALUES (@grantId, @email, @destinationEmail, @createdAt)
+    `INSERT INTO grants (grant_id, email, destination_email, created_at, primary_only)
+     VALUES (@grant_id, @email, @destination_email, @created_at, @primary_only)
      ON CONFLICT(grant_id) DO UPDATE SET email = excluded.email`,
-  ).run(grant);
+  ).run({
+    grant_id: grant.grantId,
+    email: grant.email,
+    destination_email: grant.destinationEmail,
+    created_at: grant.createdAt,
+    primary_only: grant.primaryOnly ? 1 : 0,
+  });
+}
+
+/** Toggle whether only the Primary tab is summarized for this mailbox. */
+export function setPrimaryOnly(db: DB, grantId: string, primaryOnly: boolean): void {
+  db.prepare(`UPDATE grants SET primary_only = ? WHERE grant_id = ?`).run(primaryOnly ? 1 : 0, grantId);
 }
 
 export function getGrant(db: DB, grantId: string): Grant | undefined {

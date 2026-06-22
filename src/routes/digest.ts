@@ -2,8 +2,8 @@ import type { FastifyInstance } from "fastify";
 import type { DB } from "../db/index.js";
 import type { MailProvider } from "../mail/provider.js";
 import type { Summarizer } from "../ai/summarizer.js";
-import { listGrants } from "../store/grants.js";
-import { excludeOwnDigests, excludeNoisyCategories } from "../domain/digest.js";
+import { listGrants, getGrant } from "../store/grants.js";
+import { excludeOwnDigests, filterByCategoryPolicy } from "../domain/digest.js";
 import { renderDigestHtml } from "../email/render.js";
 
 interface DigestDeps {
@@ -34,8 +34,10 @@ export function registerDigestRoutes(app: FastifyInstance, deps: DigestDeps): vo
 
     const limit = Math.min(Math.max(Number(q.limit ?? 30) || 30, 1), 100);
     const fetchN = Math.min(limit * 2 + 20, 100);
-    const messages = excludeNoisyCategories(
+    const primaryOnly = getGrant(db, grantId)?.primaryOnly ?? false;
+    const messages = filterByCategoryPolicy(
       excludeOwnDigests(await mail.listMessages(grantId, { limit: fetchN })),
+      primaryOnly,
     ).slice(0, limit);
     const digest = await summarizer.summarize(messages);
 

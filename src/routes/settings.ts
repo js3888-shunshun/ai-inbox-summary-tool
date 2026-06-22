@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { DB } from "../db/index.js";
 import type { MailProvider } from "../mail/provider.js";
 import type { Summarizer } from "../ai/summarizer.js";
-import { deleteGrantCascade, getGrant, listGrants, setDestinationEmail } from "../store/grants.js";
+import { deleteGrantCascade, getGrant, listGrants, setDestinationEmail, setPrimaryOnly } from "../store/grants.js";
 import { getSchedule, saveSchedule, setScheduleEnabled } from "../store/schedules.js";
 import { isValidCadence } from "../scheduler/cadence.js";
 import { sendDigestNow } from "../scheduler/scheduler.js";
@@ -73,6 +73,16 @@ export function registerSettingsRoutes(app: FastifyInstance, deps: SettingsDeps)
       return reply.code(400).send({ error: "no schedule to update, save one first" });
     }
     return reply.send({ ok: true, enabled: b.enabled === true });
+  });
+
+  // Toggle whether only the Gmail Primary tab is summarized for this mailbox.
+  app.post("/primary-only", async (req, reply) => {
+    const b = req.body as { grantId?: string; value?: boolean };
+    if (!b.grantId || !getGrant(db, b.grantId)) {
+      return reply.code(400).send({ error: "unknown grantId" });
+    }
+    setPrimaryOnly(db, b.grantId, b.value === true);
+    return reply.send({ ok: true, primaryOnly: b.value === true });
   });
 
   // Testing: send a batch of synthetic emails into a mailbox to exercise the pipeline.
@@ -151,7 +161,10 @@ function timezoneOptions(current: string): string {
     .join("");
 }
 
-function renderCard(g: { grantId: string; email: string; destinationEmail: string }, db: DB): string {
+function renderCard(
+  g: { grantId: string; email: string; destinationEmail: string; primaryOnly: boolean },
+  db: DB,
+): string {
   const s = getSchedule(db, g.grantId);
   const cadence = s?.cadence ?? "hourly";
   const tz = s?.timezone ?? "UTC";
@@ -208,6 +221,10 @@ function renderCard(g: { grantId: string; email: string; destinationEmail: strin
       <input class="dest" type="email" value="${esc(g.destinationEmail)}" placeholder="name@example.com">
     </label>
   </div>
+  <label class="check">
+    <input type="checkbox" class="primaryOnly" ${g.primaryOnly ? "checked" : ""} onchange="setPrimary(this)">
+    Only summarize Primary mail (skip Updates, Promotions, Social)
+  </label>
   <footer class="actions">
     <button class="btn primary" onclick="saveSchedule(this)">Save</button>
     ${toggle}
@@ -348,6 +365,13 @@ async function disconnect(btn) {
   const { ok, data } = await post("/disconnect", { grantId: f.grantId });
   if (ok) location.reload(); else flash(f.el, (data.error || "error"), "err");
 }
+async function setPrimary(box) {
+  const card = box.closest(".card");
+  const el = card.querySelector(".status");
+  flash(el, "Saving");
+  const { ok, data } = await post("/primary-only", { grantId: card.querySelector(".grantId").value, value: box.checked });
+  flash(el, ok ? (box.checked ? "Primary only" : "All inbox") : (data.error || "error"), ok ? "ok" : "err");
+}
 async function sendTest(btn) {
   const card = btn.closest(".card");
   const el = card.querySelector(".testStatus");
@@ -405,6 +429,8 @@ body{margin:0;background:var(--bg);color:var(--ink);
 .interval-row{display:flex;gap:8px}
 .interval-row select{width:auto}
 .cadNum{min-width:62px}
+.check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin:0 0 14px;cursor:pointer}
+.check input{width:15px;height:15px;cursor:pointer}
 .actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:14px}
 .btn{font:inherit;font-size:13.5px;font-weight:500;cursor:pointer;border:1px solid var(--line);
   background:#fff;color:var(--ink);padding:8px 14px;border-radius:9px;text-decoration:none;
