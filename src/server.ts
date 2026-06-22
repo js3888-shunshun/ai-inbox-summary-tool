@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import { loadConfig } from "./config.js";
-import { openDb } from "./db/index.js";
+import { openDb, getOrCreateCookieSecret } from "./db/index.js";
+import { createSession } from "./auth/session.js";
 import { NylasMailProvider } from "./mail/nylas-provider.js";
 import { ClaudeSummarizer } from "./ai/claude-summarizer.js";
 import { anthropicCompletion } from "./ai/anthropic.js";
@@ -29,16 +30,19 @@ async function main(): Promise<void> {
 
   const mail = new NylasMailProvider(config.nylas);
   const summarizer = new ClaudeSummarizer(anthropicCompletion(config.llm));
+  // Owner sessions: signed cookie, marked Secure when served over HTTPS.
+  const session = createSession(getOrCreateCookieSecret(db), config.publicBaseUrl.startsWith("https"));
 
   app.get("/health", async () => ({ ok: true }));
 
   registerAuthRoutes(app, {
     db,
     mail,
+    session,
     redirectUri: `${config.publicBaseUrl}/oauth/callback`,
   });
-  registerDigestRoutes(app, { db, mail, summarizer });
-  registerSettingsRoutes(app, { db, mail, summarizer });
+  registerDigestRoutes(app, { db, mail, summarizer, session });
+  registerSettingsRoutes(app, { db, mail, summarizer, session });
   app.register(webhookPlugin({ db, mail, webhookSecret: config.nylas.webhookSecret }));
 
   const stopScheduler = startScheduler({ db, mail, summarizer, log: app.log });

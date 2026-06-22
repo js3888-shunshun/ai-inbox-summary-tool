@@ -8,6 +8,7 @@ interface GrantRow {
   destination_email: string;
   created_at: number;
   primary_only: number;
+  owner_id: string | null;
 }
 
 function toGrant(row: GrantRow): Grant {
@@ -17,24 +18,33 @@ function toGrant(row: GrantRow): Grant {
     destinationEmail: row.destination_email,
     createdAt: row.created_at,
     primaryOnly: row.primary_only === 1,
+    ownerId: row.owner_id,
   };
 }
 
 /**
  * Persist a grant (idempotent on grantId). Reconnecting the same mailbox
  * refreshes the email but preserves the chosen destination and primary-only flag.
+ *
+ * Ownership: on conflict we COALESCE the owner — a legacy/unclaimed grant
+ * (owner_id IS NULL) is adopted by the owner who reconnects it (which required
+ * passing that account's OAuth, i.e. proof of ownership), while an already-owned
+ * grant keeps its original owner.
  */
 export function saveGrant(db: DB, grant: Grant): void {
   db.prepare(
-    `INSERT INTO grants (grant_id, email, destination_email, created_at, primary_only)
-     VALUES (@grant_id, @email, @destination_email, @created_at, @primary_only)
-     ON CONFLICT(grant_id) DO UPDATE SET email = excluded.email`,
+    `INSERT INTO grants (grant_id, email, destination_email, created_at, primary_only, owner_id)
+     VALUES (@grant_id, @email, @destination_email, @created_at, @primary_only, @owner_id)
+     ON CONFLICT(grant_id) DO UPDATE SET
+       email = excluded.email,
+       owner_id = COALESCE(grants.owner_id, excluded.owner_id)`,
   ).run({
     grant_id: grant.grantId,
     email: grant.email,
     destination_email: grant.destinationEmail,
     created_at: grant.createdAt,
     primary_only: grant.primaryOnly ? 1 : 0,
+    owner_id: grant.ownerId ?? null,
   });
 }
 
@@ -50,8 +60,28 @@ export function getGrant(db: DB, grantId: string): Grant | undefined {
   return row ? toGrant(row) : undefined;
 }
 
+/**
+ * Fetch a grant only if it belongs to `ownerId`. Used by every owner-facing
+ * mutation so one tenant cannot act on another's mailbox by guessing a grantId.
+ */
+export function getOwnedGrant(db: DB, grantId: string, ownerId: string): Grant | undefined {
+  const row = db
+    .prepare(`SELECT * FROM grants WHERE grant_id = ? AND owner_id = ?`)
+    .get(grantId, ownerId) as GrantRow | undefined;
+  return row ? toGrant(row) : undefined;
+}
+
+/** All grants, regardless of owner. For server-side use (scheduler), never the UI. */
 export function listGrants(db: DB): Grant[] {
   const rows = db.prepare(`SELECT * FROM grants`).all() as GrantRow[];
+  return rows.map(toGrant);
+}
+
+/** Grants connected by one owner — the only mailboxes that owner may see/control. */
+export function listGrantsByOwner(db: DB, ownerId: string): Grant[] {
+  const rows = db
+    .prepare(`SELECT * FROM grants WHERE owner_id = ? ORDER BY created_at`)
+    .all(ownerId) as GrantRow[];
   return rows.map(toGrant);
 }
 

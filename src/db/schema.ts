@@ -15,7 +15,16 @@ CREATE TABLE IF NOT EXISTS grants (
   email             TEXT NOT NULL,
   destination_email TEXT NOT NULL,
   created_at        INTEGER NOT NULL,
-  primary_only      INTEGER NOT NULL DEFAULT 0   -- 1 = summarize only the Primary tab
+  primary_only      INTEGER NOT NULL DEFAULT 0,   -- 1 = summarize only the Primary tab
+  owner_id          TEXT                          -- which signed-in owner connected this mailbox (NULL = legacy/unclaimed)
+);
+CREATE INDEX IF NOT EXISTS idx_grants_owner ON grants(owner_id);
+
+-- Small key/value store for server-managed secrets (e.g. the cookie-signing key),
+-- so they persist across restarts without adding new environment variables.
+CREATE TABLE IF NOT EXISTS meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS messages (

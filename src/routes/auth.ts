@@ -1,11 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import type { DB } from "../db/index.js";
 import type { MailProvider } from "../mail/provider.js";
+import type { Session } from "../auth/session.js";
 import { getGrant, saveGrant } from "../store/grants.js";
 
 interface AuthDeps {
   db: DB;
   mail: MailProvider;
+  session: Session;
   /** Public callback URL registered with Nylas, e.g. https://host/oauth/callback */
   redirectUri: string;
 }
@@ -26,14 +28,18 @@ interface CallbackQuery {
  * failed token exchange (e.g. expired/invalid code) — none of which crash.
  */
 export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
-  const { db, mail, redirectUri } = deps;
+  const { db, mail, session, redirectUri } = deps;
 
-  app.get("/auth", async (_req, reply) => {
+  app.get("/auth", async (req, reply) => {
+    // Ensure this browser has an owner id before leaving for Nylas, so the grant
+    // created on callback can be attributed to it.
+    session.currentOrIssue(req, reply);
     return reply.redirect(mail.authUrl(redirectUri));
   });
 
   app.get("/oauth/callback", async (req, reply) => {
     const q = req.query as CallbackQuery;
+    const ownerId = session.currentOrIssue(req, reply);
 
     if (q.error) {
       app.log.warn({ error: q.error }, "oauth consent not granted");
@@ -56,6 +62,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
         destinationEmail: existing?.destinationEmail ?? email,
         createdAt: existing?.createdAt ?? Date.now(),
         primaryOnly: existing?.primaryOnly ?? false,
+        ownerId, // claims a legacy/unclaimed grant; ignored if already owned (COALESCE)
       });
       app.log.info({ grantId }, "mailbox connected"); // never log tokens/bodies
       return reply.type("text/html").send(connectedPage(email));

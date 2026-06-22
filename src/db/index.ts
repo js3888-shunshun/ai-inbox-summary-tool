@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { randomBytes } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { SCHEMA_SQL } from "./schema.js";
@@ -22,6 +23,7 @@ export function openDb(databasePath: string): DB {
 /** Lightweight, idempotent column migrations for databases created before a field existed. */
 function migrate(db: DB): void {
   ensureColumn(db, "grants", "primary_only", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "grants", "owner_id", "TEXT"); // multi-tenant: NULL on legacy rows until claimed
 }
 
 function ensureColumn(db: DB, table: string, column: string, ddl: string): void {
@@ -29,4 +31,19 @@ function ensureColumn(db: DB, table: string, column: string, ddl: string): void 
   if (!cols.some((c) => c.name === column)) {
     db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
   }
+}
+
+/**
+ * Return the persisted cookie-signing secret, generating and storing one on first
+ * use. Keeping it in the DB (rather than an env var) means signed sessions survive
+ * restarts without extra deployment configuration.
+ */
+export function getOrCreateCookieSecret(db: DB): string {
+  const row = db.prepare(`SELECT value FROM meta WHERE key = 'cookie_secret'`).get() as
+    | { value: string }
+    | undefined;
+  if (row) return row.value;
+  const secret = randomBytes(32).toString("base64url");
+  db.prepare(`INSERT INTO meta (key, value) VALUES ('cookie_secret', ?)`).run(secret);
+  return secret;
 }

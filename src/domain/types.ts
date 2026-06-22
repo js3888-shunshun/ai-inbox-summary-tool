@@ -13,6 +13,8 @@ export interface Grant {
   createdAt: number;
   /** When true, only the Gmail Primary tab is summarized (skip Updates/Promotions/Social/Forums). */
   primaryOnly: boolean;
+  /** The signed-in owner who connected this mailbox. NULL for legacy rows until reconnected. */
+  ownerId?: string | null;
 }
 
 /** The minimal slice of a message we need to summarize it. */

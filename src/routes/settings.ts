@@ -1,8 +1,10 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { DB } from "../db/index.js";
 import type { MailProvider } from "../mail/provider.js";
 import type { Summarizer } from "../ai/summarizer.js";
-import { deleteGrantCascade, getGrant, listGrants, setDestinationEmail, setPrimaryOnly } from "../store/grants.js";
+import type { Session } from "../auth/session.js";
+import type { Grant } from "../domain/types.js";
+import { deleteGrantCascade, getOwnedGrant, listGrantsByOwner, setDestinationEmail, setPrimaryOnly } from "../store/grants.js";
 import { getSchedule, saveSchedule, setScheduleEnabled } from "../store/schedules.js";
 import { isValidCadence } from "../scheduler/cadence.js";
 import { sendDigestNow } from "../scheduler/scheduler.js";
@@ -12,6 +14,7 @@ interface SettingsDeps {
   db: DB;
   mail: MailProvider;
   summarizer: Summarizer;
+  session: Session;
 }
 
 interface ScheduleBody {
@@ -28,15 +31,24 @@ interface ScheduleBody {
  *   POST /send-now  manually trigger a digest for a grant
  */
 export function registerSettingsRoutes(app: FastifyInstance, deps: SettingsDeps): void {
-  const { db } = deps;
+  const { db, session } = deps;
 
-  app.get("/", async (_req, reply) => {
-    return reply.type("text/html").send(renderHome(db));
+  // Resolve the grantId in a request body to a mailbox owned by the current
+  // visitor. Returns undefined if the visitor has no session or does not own it,
+  // so callers can reject uniformly without leaking another tenant's grantId.
+  const ownedGrant = (req: FastifyRequest, grantId: string | undefined): Grant | undefined => {
+    const ownerId = session.readOwner(req);
+    return ownerId && grantId ? getOwnedGrant(db, grantId, ownerId) : undefined;
+  };
+
+  app.get("/", async (req, reply) => {
+    const ownerId = session.currentOrIssue(req, reply);
+    return reply.type("text/html").send(renderHome(db, ownerId));
   });
 
   app.post("/schedule", async (req, reply) => {
     const b = req.body as ScheduleBody;
-    if (!b.grantId || !getGrant(db, b.grantId)) {
+    if (!ownedGrant(req, b.grantId)) {
       return reply.code(400).send({ error: "unknown grantId" });
     }
     if (!b.cadence || !isValidCadence(b.cadence)) {
@@ -56,7 +68,7 @@ export function registerSettingsRoutes(app: FastifyInstance, deps: SettingsDeps)
 
   app.post("/send-now", async (req, reply) => {
     const b = req.body as ScheduleBody & { limit?: number };
-    const grant = b.grantId ? getGrant(db, b.grantId) : undefined;
+    const grant = ownedGrant(req, b.grantId);
     if (!grant) return reply.code(400).send({ error: "unknown grantId" });
     const limit = Math.min(Math.max(Number(b.limit) || 30, 1), 100);
     const messageCount = await sendDigestNow({ ...deps, log: app.log }, grant, limit);
@@ -66,7 +78,7 @@ export function registerSettingsRoutes(app: FastifyInstance, deps: SettingsDeps)
   // Pause / resume digests for a mailbox without losing its cadence.
   app.post("/schedule/enabled", async (req, reply) => {
     const b = req.body as { grantId?: string; enabled?: boolean };
-    if (!b.grantId || !getGrant(db, b.grantId)) {
+    if (!ownedGrant(req, b.grantId) || !b.grantId) {
       return reply.code(400).send({ error: "unknown grantId" });
     }
     if (!setScheduleEnabled(db, b.grantId, b.enabled === true)) {
@@ -78,7 +90,7 @@ export function registerSettingsRoutes(app: FastifyInstance, deps: SettingsDeps)
   // Toggle whether only the Gmail Primary tab is summarized for this mailbox.
   app.post("/primary-only", async (req, reply) => {
     const b = req.body as { grantId?: string; value?: boolean };
-    if (!b.grantId || !getGrant(db, b.grantId)) {
+    if (!ownedGrant(req, b.grantId) || !b.grantId) {
       return reply.code(400).send({ error: "unknown grantId" });
     }
     setPrimaryOnly(db, b.grantId, b.value === true);
@@ -88,7 +100,7 @@ export function registerSettingsRoutes(app: FastifyInstance, deps: SettingsDeps)
   // Testing: send a batch of synthetic emails into a mailbox to exercise the pipeline.
   app.post("/test-mail", async (req, reply) => {
     const b = req.body as { grantId?: string; count?: number };
-    const grant = b.grantId ? getGrant(db, b.grantId) : undefined;
+    const grant = ownedGrant(req, b.grantId);
     if (!grant) return reply.code(400).send({ error: "unknown grantId" });
     const count = Math.max(1, Math.min(Number(b.count) || 1, 10));
     try {
@@ -103,7 +115,7 @@ export function registerSettingsRoutes(app: FastifyInstance, deps: SettingsDeps)
   // Disconnect a mailbox: revoke the grant on Nylas, then drop all local data.
   app.post("/disconnect", async (req, reply) => {
     const b = req.body as { grantId?: string };
-    if (!b.grantId || !getGrant(db, b.grantId)) {
+    if (!ownedGrant(req, b.grantId) || !b.grantId) {
       return reply.code(400).send({ error: "unknown grantId" });
     }
     try {
@@ -270,8 +282,8 @@ function renderTestPanel(grants: ReadonlyArray<{ grantId: string; email: string 
 </div>`;
 }
 
-function renderHome(db: DB): string {
-  const grants = listGrants(db);
+function renderHome(db: DB, ownerId: string): string {
+  const grants = listGrantsByOwner(db, ownerId);
   const cards = grants.map((g) => renderCard(g, db)).join("");
   const empty = `
 <div class="empty">
