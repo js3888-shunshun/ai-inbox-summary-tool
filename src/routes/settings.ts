@@ -48,20 +48,21 @@ export function registerSettingsRoutes(app: FastifyInstance, deps: SettingsDeps)
 
   app.post("/schedule", async (req, reply) => {
     const b = req.body as ScheduleBody;
-    if (!ownedGrant(req, b.grantId)) {
+    const grant = ownedGrant(req, b.grantId);
+    if (!grant) {
       return reply.code(400).send({ error: "unknown grantId" });
     }
     if (!b.cadence || !isValidCadence(b.cadence)) {
       return reply.code(400).send({ error: "invalid cadence (try hourly, every:5m, every:2h, daily:09:00)" });
     }
     saveSchedule(db, {
-      grantId: b.grantId,
+      grantId: grant.grantId,
       cadence: b.cadence,
       timezone: b.timezone?.trim() || "UTC",
       enabled: true,
     });
     if (b.destinationEmail?.trim()) {
-      setDestinationEmail(db, b.grantId, b.destinationEmail.trim());
+      setDestinationEmail(db, grant.grantId, b.destinationEmail.trim());
     }
     return reply.send({ ok: true });
   });
