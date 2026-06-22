@@ -27,3 +27,6 @@ data/
 *.mkv
 *.zip
 
+
+# challenge brief (keep local, not in repo)
+Coding Challenge.pdf
