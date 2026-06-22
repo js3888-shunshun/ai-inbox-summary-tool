@@ -20,3 +20,10 @@ data/
 # logs / os
 *.log
 .DS_Store
+
+# local demo recordings — too large for GitHub, keep out of the repo
+*.mp4
+*.mov
+*.mkv
+*.zip
+
