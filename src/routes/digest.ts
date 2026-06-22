@@ -4,6 +4,7 @@ import type { MailProvider } from "../mail/provider.js";
 import type { Summarizer } from "../ai/summarizer.js";
 import type { Session } from "../auth/session.js";
 import { listGrantsByOwner, getOwnedGrant } from "../store/grants.js";
+import { currentUser } from "../store/users.js";
 import { excludeOwnDigests, filterByCategoryPolicy } from "../domain/digest.js";
 import { renderDigestHtml } from "../email/render.js";
 
@@ -29,11 +30,12 @@ export function registerDigestRoutes(app: FastifyInstance, deps: DigestDeps): vo
 
   app.get("/debug/digest", async (req, reply) => {
     const q = req.query as DigestQuery;
-    const ownerId = session.currentOrIssue(req, reply);
-    // Preview only a mailbox this visitor owns; default to their first connected one.
+    const user = currentUser(db, session, req);
+    if (!user) return reply.redirect("/login");
+    // Preview only a mailbox this user owns; default to their first connected one.
     const grant = q.grantId
-      ? getOwnedGrant(db, q.grantId, ownerId)
-      : listGrantsByOwner(db, ownerId)[0];
+      ? getOwnedGrant(db, q.grantId, user.id)
+      : listGrantsByOwner(db, user.id)[0];
     if (!grant) {
       return reply.code(404).type("text/html").send("<h2>No connected mailbox. Visit /auth first.</h2>");
     }

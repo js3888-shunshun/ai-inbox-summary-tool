@@ -5,6 +5,7 @@ import { createSession } from "./auth/session.js";
 import { NylasMailProvider } from "./mail/nylas-provider.js";
 import { ClaudeSummarizer } from "./ai/claude-summarizer.js";
 import { anthropicCompletion } from "./ai/anthropic.js";
+import { registerAccountRoutes } from "./routes/account.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerDigestRoutes } from "./routes/digest.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
@@ -35,6 +36,7 @@ async function main(): Promise<void> {
 
   app.get("/health", async () => ({ ok: true }));
 
+  registerAccountRoutes(app, { db, session });
   registerAuthRoutes(app, {
     db,
     mail,

@@ -28,6 +28,15 @@ CREATE TABLE IF NOT EXISTS meta (
   value TEXT NOT NULL
 );
 
+-- User accounts. A grant's owner_id references a user here. Passwords are stored
+-- only as a salted scrypt hash ("salt:key" hex) — never in plaintext.
+CREATE TABLE IF NOT EXISTS users (
+  id            TEXT PRIMARY KEY,
+  username      TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  created_at    INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS messages (
   id          TEXT PRIMARY KEY,          -- Nylas message id; PK makes ingest idempotent
   grant_id    TEXT NOT NULL,

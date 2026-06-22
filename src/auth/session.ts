@@ -1,39 +1,42 @@
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import type { FastifyReply, FastifyRequest } from "fastify";
 
 /**
- * Owner identity for multi-tenancy. There is no password login: a visitor is
- * identified by an opaque, server-signed "owner" id carried in a cookie. The
- * OAuth consent flow is the only way to attach a mailbox to that owner, so the
- * connected Google account is the real proof of identity — the cookie just
- * remembers which owner this browser is.
+ * Login sessions for multi-tenancy. A logged-in user is identified by their
+ * user id carried in an HMAC-signed cookie:
+ *   - signed, so a client cannot forge another user's id;
+ *   - HttpOnly, so it is not readable from page JavaScript;
+ *   - SameSite=Lax, so it still rides the top-level redirect back from Nylas to
+ *     /oauth/callback;
+ *   - Secure when served over HTTPS.
  *
- * The cookie is HMAC-signed (so a client cannot forge another owner's id),
- * HttpOnly (not readable from JS), and SameSite=Lax (so it still rides the
- * top-level redirect back from Nylas to /oauth/callback).
+ * The cookie only proves "this browser is logged in as user X". Authentication
+ * (username + password) happens in the account routes, which call `login` to
+ * set it and `logout` to clear it.
  */
-const OWNER_COOKIE = "owner";
-const MAX_AGE_S = 60 * 60 * 24 * 365; // 1 year
+const SID_COOKIE = "sid";
+const MAX_AGE_S = 60 * 60 * 24 * 30; // 30 days
 
 export interface Session {
-  /** The owner id from a valid cookie, or undefined if absent/tampered. */
-  readOwner(req: FastifyRequest): string | undefined;
-  /** Return the current owner, minting and setting a new one if none exists. */
-  currentOrIssue(req: FastifyRequest, reply: FastifyReply): string;
+  /** The authenticated user id from a valid cookie, or undefined. */
+  readUser(req: FastifyRequest): string | undefined;
+  /** Set the signed session cookie for a freshly authenticated user. */
+  login(reply: FastifyReply, userId: string): void;
+  /** Clear the session cookie. */
+  logout(reply: FastifyReply): void;
 }
 
 export function createSession(secret: string, secure: boolean): Session {
   return {
-    readOwner(req) {
-      const raw = parseCookies(req.headers.cookie)[OWNER_COOKIE];
+    readUser(req) {
+      const raw = parseCookies(req.headers.cookie)[SID_COOKIE];
       return raw ? unsign(raw, secret) : undefined;
     },
-    currentOrIssue(req, reply) {
-      const existing = this.readOwner(req);
-      if (existing) return existing;
-      const id = randomUUID();
-      setOwnerCookie(reply, sign(id, secret), secure);
-      return id;
+    login(reply, userId) {
+      setCookie(reply, sign(userId, secret), MAX_AGE_S, secure);
+    },
+    logout(reply) {
+      setCookie(reply, "", 0, secure);
     },
   };
 }
@@ -53,14 +56,8 @@ function unsign(signed: string, secret: string): string | undefined {
   return value;
 }
 
-function setOwnerCookie(reply: FastifyReply, signed: string, secure: boolean): void {
-  const attrs = [
-    `${OWNER_COOKIE}=${signed}`,
-    "Path=/",
-    `Max-Age=${MAX_AGE_S}`,
-    "HttpOnly",
-    "SameSite=Lax",
-  ];
+function setCookie(reply: FastifyReply, value: string, maxAge: number, secure: boolean): void {
+  const attrs = [`${SID_COOKIE}=${value}`, "Path=/", `Max-Age=${maxAge}`, "HttpOnly", "SameSite=Lax"];
   if (secure) attrs.push("Secure");
   reply.header("set-cookie", attrs.join("; "));
 }

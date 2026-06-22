@@ -4,6 +4,8 @@ import type { MailProvider } from "../mail/provider.js";
 import type { Summarizer } from "../ai/summarizer.js";
 import type { Session } from "../auth/session.js";
 import type { Grant } from "../domain/types.js";
+import type { User } from "../store/users.js";
+import { currentUser } from "../store/users.js";
 import { deleteGrantCascade, getOwnedGrant, listGrantsByOwner, setDestinationEmail, setPrimaryOnly } from "../store/grants.js";
 import { getSchedule, saveSchedule, setScheduleEnabled } from "../store/schedules.js";
 import { isValidCadence } from "../scheduler/cadence.js";
@@ -33,17 +35,18 @@ interface ScheduleBody {
 export function registerSettingsRoutes(app: FastifyInstance, deps: SettingsDeps): void {
   const { db, session } = deps;
 
-  // Resolve the grantId in a request body to a mailbox owned by the current
-  // visitor. Returns undefined if the visitor has no session or does not own it,
-  // so callers can reject uniformly without leaking another tenant's grantId.
+  // Resolve the grantId in a request body to a mailbox owned by the logged-in
+  // user. Returns undefined if not logged in or the user does not own it, so
+  // callers reject uniformly without leaking another tenant's grantId.
   const ownedGrant = (req: FastifyRequest, grantId: string | undefined): Grant | undefined => {
-    const ownerId = session.readOwner(req);
-    return ownerId && grantId ? getOwnedGrant(db, grantId, ownerId) : undefined;
+    const user = currentUser(db, session, req);
+    return user && grantId ? getOwnedGrant(db, grantId, user.id) : undefined;
   };
 
   app.get("/", async (req, reply) => {
-    const ownerId = session.currentOrIssue(req, reply);
-    return reply.type("text/html").send(renderHome(db, ownerId));
+    const user = currentUser(db, session, req);
+    if (!user) return reply.redirect("/login");
+    return reply.type("text/html").send(renderHome(db, user));
   });
 
   app.post("/schedule", async (req, reply) => {
@@ -283,8 +286,8 @@ function renderTestPanel(grants: ReadonlyArray<{ grantId: string; email: string 
 </div>`;
 }
 
-function renderHome(db: DB, ownerId: string): string {
-  const grants = listGrantsByOwner(db, ownerId);
+function renderHome(db: DB, user: User): string {
+  const grants = listGrantsByOwner(db, user.id);
   const cards = grants.map((g) => renderCard(g, db)).join("");
   const empty = `
 <div class="empty">
@@ -300,6 +303,10 @@ function renderHome(db: DB, ownerId: string): string {
 </head>
 <body>
 <div class="wrap">
+  <nav class="userbar">
+    <span class="who">Signed in as <strong>${esc(user.username)}</strong></span>
+    <form method="post" action="/logout" class="logout"><button type="submit" class="btn ghost">Sign out</button></form>
+  </nav>
   <header class="hero">
     <div>
       <h1>AI Inbox Summary</h1>
@@ -407,7 +414,10 @@ const STYLE = `
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.5}
-.wrap{max-width:780px;margin:0 auto;padding:32px 20px 64px}
+.wrap{max-width:780px;margin:0 auto;padding:24px 20px 64px}
+.userbar{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-bottom:18px}
+.userbar .who{font-size:13px;color:var(--muted)}
+.userbar .logout{margin:0}
 .hero{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:28px}
 .hero h1{margin:0;font-size:26px;letter-spacing:-.02em}
 .tagline{margin:6px 0 0;color:var(--muted);font-size:14px}

@@ -26,10 +26,10 @@ function toGrant(row: GrantRow): Grant {
  * Persist a grant (idempotent on grantId). Reconnecting the same mailbox
  * refreshes the email but preserves the chosen destination and primary-only flag.
  *
- * Ownership: on conflict we COALESCE the owner — a legacy/unclaimed grant
- * (owner_id IS NULL) is adopted by the owner who reconnects it (which required
- * passing that account's OAuth, i.e. proof of ownership), while an already-owned
- * grant keeps its original owner.
+ * Ownership: connecting a mailbox binds it to the account doing the connecting.
+ * On reconnect we set owner_id to the connecting user (passing that account's
+ * OAuth is itself proof of control), which also claims legacy NULL rows. If no
+ * owner is supplied (non-route callers), COALESCE preserves the existing owner.
  */
 export function saveGrant(db: DB, grant: Grant): void {
   db.prepare(
@@ -37,7 +37,7 @@ export function saveGrant(db: DB, grant: Grant): void {
      VALUES (@grant_id, @email, @destination_email, @created_at, @primary_only, @owner_id)
      ON CONFLICT(grant_id) DO UPDATE SET
        email = excluded.email,
-       owner_id = COALESCE(grants.owner_id, excluded.owner_id)`,
+       owner_id = COALESCE(excluded.owner_id, grants.owner_id)`,
   ).run({
     grant_id: grant.grantId,
     email: grant.email,

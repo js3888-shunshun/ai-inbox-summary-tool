@@ -3,6 +3,7 @@ import type { DB } from "../db/index.js";
 import type { MailProvider } from "../mail/provider.js";
 import type { Session } from "../auth/session.js";
 import { getGrant, saveGrant } from "../store/grants.js";
+import { currentUser } from "../store/users.js";
 
 interface AuthDeps {
   db: DB;
@@ -31,15 +32,17 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
   const { db, mail, session, redirectUri } = deps;
 
   app.get("/auth", async (req, reply) => {
-    // Ensure this browser has an owner id before leaving for Nylas, so the grant
-    // created on callback can be attributed to it.
-    session.currentOrIssue(req, reply);
+    // Connecting a mailbox requires being signed in, so the new grant can be
+    // attributed to that account.
+    if (!currentUser(db, session, req)) return reply.redirect("/login");
     return reply.redirect(mail.authUrl(redirectUri));
   });
 
   app.get("/oauth/callback", async (req, reply) => {
     const q = req.query as CallbackQuery;
-    const ownerId = session.currentOrIssue(req, reply);
+    const user = currentUser(db, session, req);
+    if (!user) return reply.redirect("/login");
+    const ownerId = user.id;
 
     if (q.error) {
       app.log.warn({ error: q.error }, "oauth consent not granted");
