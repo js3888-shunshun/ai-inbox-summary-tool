@@ -8,7 +8,7 @@ import type { User } from "../store/users.js";
 import { currentUser } from "../store/users.js";
 import { deleteGrantCascade, getOwnedGrant, listGrantsByOwner, setDestinationEmail, setPrimaryOnly } from "../store/grants.js";
 import { getSchedule, saveSchedule, setScheduleEnabled } from "../store/schedules.js";
-import { isValidCadence } from "../scheduler/cadence.js";
+import { isValidCadence, DEFAULT_CADENCE, DEFAULT_TIMEZONE } from "../scheduler/cadence.js";
 import { sendDigestNow } from "../scheduler/scheduler.js";
 import { sendTestEmails } from "../email/test-mail.js";
 
@@ -182,8 +182,8 @@ function renderCard(
   db: DB,
 ): string {
   const s = getSchedule(db, g.grantId);
-  const cadence = s?.cadence ?? "hourly";
-  const tz = s?.timezone ?? "UTC";
+  const cadence = s?.cadence ?? DEFAULT_CADENCE;
+  const tz = s?.timezone ?? DEFAULT_TIMEZONE;
   const enabled = s?.enabled ?? false;
   const p = cadenceParts(cadence);
   const isDaily = p.mode === "daily";
@@ -364,7 +364,10 @@ function flash(el, msg, kind) { el.textContent = msg; el.className = "status " +
 async function saveSchedule(btn) {
   const f = fields(btn); flash(f.el, "Saving");
   const { ok, data } = await post("/schedule", f);
-  flash(f.el, ok ? "Saved" : (data.error || "error"), ok ? "ok" : "err");
+  // Reload on success so the server-rendered status pill (No schedule -> Active)
+  // and the Pause/Resume button reflect the newly saved schedule.
+  if (ok) { location.reload(); return; }
+  flash(f.el, data.error || "error", "err");
 }
 async function sendNow(btn) {
   const f = fields(btn);

@@ -14,6 +14,10 @@ export type Cadence =
   | { kind: "interval"; ms: number }
   | { kind: "daily"; hour: number; minute: number };
 
+/** Defaults applied to a freshly connected mailbox so it starts active, not unscheduled. */
+export const DEFAULT_CADENCE = "daily:09:00";
+export const DEFAULT_TIMEZONE = "UTC";
+
 export function parseCadence(input: string): Cadence {
   if (input === "hourly") return { kind: "interval", ms: 3_600_000 };
 

@@ -3,6 +3,8 @@ import type { DB } from "../db/index.js";
 import type { MailProvider } from "../mail/provider.js";
 import type { Session } from "../auth/session.js";
 import { getGrant, saveGrant } from "../store/grants.js";
+import { getSchedule, saveSchedule } from "../store/schedules.js";
+import { DEFAULT_CADENCE, DEFAULT_TIMEZONE } from "../scheduler/cadence.js";
 import { currentUser } from "../store/users.js";
 
 interface AuthDeps {
@@ -67,6 +69,17 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
         primaryOnly: existing?.primaryOnly ?? false,
         ownerId, // claims a legacy/unclaimed grant; ignored if already owned (COALESCE)
       });
+      // Give a freshly connected mailbox a sensible, active default schedule so it
+      // works out of the box. Reconnecting an already-configured mailbox keeps its
+      // existing cadence.
+      if (!getSchedule(db, grantId)) {
+        saveSchedule(db, {
+          grantId,
+          cadence: DEFAULT_CADENCE,
+          timezone: DEFAULT_TIMEZONE,
+          enabled: true,
+        });
+      }
       app.log.info({ grantId }, "mailbox connected"); // never log tokens/bodies
       return reply.type("text/html").send(connectedPage(email));
     } catch (err) {
