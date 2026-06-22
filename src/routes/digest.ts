@@ -33,8 +33,8 @@ export function registerDigestRoutes(app: FastifyInstance, deps: DigestDeps): vo
     }
 
     const limit = Math.min(Math.max(Number(q.limit ?? 30) || 30, 1), 100);
-    const fetchN = Math.min(limit * 2 + 20, 100);
     const primaryOnly = getGrant(db, grantId)?.primaryOnly ?? false;
+    const fetchN = primaryOnly ? 100 : Math.min(limit * 2 + 20, 100);
     const messages = filterByCategoryPolicy(
       excludeOwnDigests(await mail.listMessages(grantId, { limit: fetchN })),
       primaryOnly,

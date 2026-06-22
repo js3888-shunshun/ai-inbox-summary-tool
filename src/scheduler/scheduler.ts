@@ -103,7 +103,9 @@ export async function sendDigestNow(deps: SchedulerDeps, grant: Grant, limit = 3
   // filtered out without shrinking the effective count, then trim to `limit` — so
   // "last N" means up to N real (non-digest) inbox emails. Capped at the Nylas
   // single-page max of 100.
-  const fetchN = Math.min(limit * 2 + 20, 100);
+  // Primary-only filters out most of the inbox, so pull the full page (Nylas max
+  // 100) to reach enough Primary mail; otherwise a modest buffer past `limit`.
+  const fetchN = grant.primaryOnly ? 100 : Math.min(limit * 2 + 20, 100);
   const recent = filterByCategoryPolicy(
     excludeOwnDigests(await deps.mail.listMessages(grant.grantId, { limit: fetchN })),
     grant.primaryOnly,
